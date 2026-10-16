@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 import traceback
@@ -7,7 +8,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal as D
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -21,9 +22,18 @@ from core.rates import get_rate
 from core.routes import load_routes
 from core.user_quote import analyze_quote
 from sandbox.ledger import Sandbox
+from store import Store
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
+
+# Hosts that count as "this machine". Used by the optional LOCAL_ONLY guard.
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def is_local_host(host) -> bool:
+    return host in LOCAL_HOSTS
+
 
 
 def is_illustrative(route) -> bool:
@@ -39,14 +49,38 @@ def completed_actions_note(exc) -> str:
             + ", ".join(tools) + ". Check the lists before repeating them.")
 
 
+class RateLimiter:
+    """Fixed-window limiter: at most ``max_calls`` per ``window_seconds``
+    for each key (the client host). Guards the slow, costly chat endpoint.
+    In memory, no extra dependency."""
+
+    def __init__(self, max_calls, window_seconds):
+        self.max_calls = max_calls
+        self.window = window_seconds
+        self._hits = {}
+        self._lock = threading.Lock()
+
+    def allow(self, key) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            start, count = self._hits.get(key, (now, 0))
+            if now - start >= self.window:
+                start, count = now, 0
+            count += 1
+            self._hits[key] = (start, count)
+            return count <= self.max_calls
+
+
 class AppState:
-    def __init__(self, sandbox, toolbox, agent, rate, routes, llm_mode):
+    def __init__(self, sandbox, toolbox, agent, rate, routes, llm_mode,
+                 store=None):
         self.sandbox = sandbox
         self.toolbox = toolbox
         self.agent = agent
         self.rate = rate
         self.routes = routes
         self.llm_mode = llm_mode
+        self.store = store
         self.my_quotes = []
         # lock: short state operations. chat_lock: one chat turn at a time.
         # The slow AI call must never hold `lock`, or the whole page freezes.
@@ -59,17 +93,21 @@ def build_default_state() -> AppState:
     rate = get_rate()
     routes = load_routes(ROOT / "data" / "fees.json")
     mandate = Mandate(D("50000"), D("5000"), D("60"))
+    store = Store(ROOT / "data" / "studentfx.db")
     sandbox = Sandbox(D("2000000"), mandate, 1,
-                      ROOT / "logs" / "audit.jsonl")
-    toolbox = ToolBox(sandbox, routes, rate)
+                      ROOT / "logs" / "audit.jsonl", store=store)
+    toolbox = ToolBox(sandbox, routes, rate, store=store)
+    quotes = store.restore(sandbox, toolbox)
     try:
         model = GeminiModel.from_env()
         mode = f"gemini:{model.model}"
     except LLMError:
         model = MockModel()
         mode = "demo"
-    return AppState(sandbox, toolbox, Agent(model, toolbox), rate, routes,
-                    mode)
+    st = AppState(sandbox, toolbox, Agent(model, toolbox), rate, routes, mode,
+                  store=store)
+    st.my_quotes = quotes
+    return st
 
 
 def snapshot(s: AppState) -> dict:
@@ -133,7 +171,13 @@ class MandateReq(BaseModel):
     max_pkr_per_cny: str | int | float
 
 
-def create_app(state=None) -> FastAPI:
+def create_app(state=None, chat_rate_limit=30,
+               chat_rate_window=60, local_only=None) -> FastAPI:
+    limiter = RateLimiter(chat_rate_limit, chat_rate_window)
+    if local_only is None:
+        local_only = os.getenv("LOCAL_ONLY", "").strip().lower() in (
+            "1", "true", "yes")
+
     @asynccontextmanager
     async def lifespan(app):
         if state is None:
@@ -143,6 +187,20 @@ def create_app(state=None) -> FastAPI:
     app = FastAPI(title="StudentFX", lifespan=lifespan)
     if state is not None:
         app.state.st = state
+
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        if local_only:
+            host = request.client.host if request.client else ""
+            if not is_local_host(host):
+                return Response(
+                    "Forbidden: this server only accepts local connections.",
+                    status_code=403)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
     def st() -> AppState:
         return app.state.st
@@ -162,8 +220,14 @@ def create_app(state=None) -> FastAPI:
             return snapshot(s)
 
     @app.post("/api/chat")
-    def chat(req: ChatReq):
+    def chat(req: ChatReq, request: Request):
         s = st()
+        host = request.client.host if request.client else "unknown"
+        if not limiter.allow(host):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many messages too quickly. Please wait a minute "
+                       "and try again.")
         msg = req.message.strip()
         if not msg:
             raise HTTPException(status_code=400, detail="empty message")
@@ -228,7 +292,7 @@ def create_app(state=None) -> FastAPI:
         if req.tier not in (0, 1, 2):
             raise HTTPException(status_code=400, detail="tier must be 0, 1 or 2")
         with s.lock:
-            s.sandbox.tier = req.tier
+            s.sandbox.set_tier(req.tier)
         return {"tier": req.tier}
 
     @app.post("/api/mandate")
@@ -260,6 +324,7 @@ def create_app(state=None) -> FastAPI:
             }
             with path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
+            s.sandbox.save()
         return {"ok": True}
 
     @app.post("/api/quotes")
@@ -282,6 +347,8 @@ def create_app(state=None) -> FastAPI:
         }
         with s.lock:
             s.my_quotes.append(entry)
+            if s.store is not None:
+                s.store.save_quotes(s.my_quotes)
         return entry
 
     @app.get("/api/log")

@@ -3,3 +3,5 @@ __pycache__/
 .venv/
 logs/*.jsonl
 data/rate_cache.json
+data/*.db
+doc/

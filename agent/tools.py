@@ -22,13 +22,14 @@ class ToolBox:
     """The only functions the AI may call. There is deliberately no
     confirm, reject or mandate change here: only a human (UI) may do those."""
 
-    def __init__(self, sandbox, routes, rate):
+    def __init__(self, sandbox, routes, rate, store=None):
         self.sandbox = sandbox
         self.routes = routes
         self.rate = rate
         self.expenses = []
         self.events = []
         self.last_effective_rate = None
+        self.store = store
         self.lock = threading.RLock()
         self._handlers = {
             "get_rate": self._get_rate,
@@ -44,6 +45,11 @@ class ToolBox:
     @property
     def tool_names(self):
         return tuple(sorted(self._handlers))
+
+    def load(self, *, expenses, events) -> None:
+        """Restore saved collections (used by the Store on startup)."""
+        self.expenses = list(expenses)
+        self.events = list(events)
 
     def call(self, name, args=None):
         args = args or {}
@@ -107,6 +113,8 @@ class ToolBox:
     def _add_expense(self, name, on, amount_cny, category):
         self.expenses.append(
             Expense(name, date.fromisoformat(on), _d(amount_cny), category))
+        if self.store is not None:
+            self.store.save_expenses(self.expenses)
         return {"ok": True, "expense_count": len(self.expenses)}
 
     def _spending_summary(self, year, month):
@@ -129,6 +137,8 @@ class ToolBox:
     def _add_event(self, name, on, amount_cny, kind):
         self.events.append(
             Event(name, date.fromisoformat(on), _d(amount_cny), kind))
+        if self.store is not None:
+            self.store.save_events(self.events)
         return {"ok": True, "event_count": len(self.events)}
 
     def _forecast(self, start, end, start_balance_cny=None,

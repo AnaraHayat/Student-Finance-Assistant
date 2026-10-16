@@ -166,7 +166,9 @@ function renderState() {
   $("#bal-cny").textContent = fmt(s.balances.cny);
 
   document.querySelectorAll(".tier-pill").forEach((b) => {
-    b.classList.toggle("active", Number(b.dataset.tier) === s.tier);
+    const on = Number(b.dataset.tier) === s.tier;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
   });
   $("#tier-help").textContent = TIER_HELP[s.tier];
 
@@ -224,7 +226,7 @@ function renderTrust() {
     ["AI", modeText(s)]
   ].forEach(([k, v]) => { dl.appendChild(el("dt", "", k)); dl.appendChild(el("dd", "", v)); });
   $("#trust-note").textContent = illus > 0
-    ? "Illustrative routes use made-up fees. Do not use them to choose a real transfer."
+    ? "Illustrative routes are not fully sourced (for example the exchange-rate markup may be missing). Do not use them to choose a real transfer."
     : "";
 }
 
@@ -441,13 +443,32 @@ $("#mandate-form").addEventListener("submit", async (ev) => {
 });
 
 /* ---------- tabs ---------- */
-document.querySelectorAll("#tabs .tab").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("#tabs .tab").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
-    btn.classList.add("active");
-    $("#tab-" + btn.dataset.tab).classList.remove("hidden");
-    if (btn.dataset.tab === "activity") loadLog();
+const TAB_BTNS = Array.from(document.querySelectorAll("#tabs .tab"));
+
+function activateTab(btn) {
+  TAB_BTNS.forEach((b) => {
+    const on = b === btn;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1;
+  });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
+  $("#tab-" + btn.dataset.tab).classList.remove("hidden");
+  if (btn.dataset.tab === "activity") loadLog();
+}
+
+TAB_BTNS.forEach((btn, i) => {
+  btn.addEventListener("click", () => activateTab(btn));
+  btn.addEventListener("keydown", (ev) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(ev.key)) return;
+    ev.preventDefault();
+    let next = i;
+    if (ev.key === "ArrowRight") next = (i + 1) % TAB_BTNS.length;
+    else if (ev.key === "ArrowLeft") next = (i - 1 + TAB_BTNS.length) % TAB_BTNS.length;
+    else if (ev.key === "Home") next = 0;
+    else if (ev.key === "End") next = TAB_BTNS.length - 1;
+    TAB_BTNS[next].focus();
+    activateTab(TAB_BTNS[next]);
   });
 });
 

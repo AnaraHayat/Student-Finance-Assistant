@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StudentFX helps Pakistani students in China compare PKR to CNY transfer routes, track spending and forecast shortfalls. Sandbox only.">
   <title>StudentFX — Finance Assistant</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -219,6 +220,17 @@
     .error-text { color: var(--danger); font-weight: 600; }
     .warn-text { color: var(--warn); font-weight: 600; font-size: 12.5px; margin: 10px 0 0; }
 
+    .skip-link {
+      position: absolute; left: -999px; top: 8px; z-index: 100;
+      background: #fff; color: var(--primary-dark); padding: 9px 15px;
+      border-radius: var(--radius-sm); font-weight: 600; box-shadow: var(--shadow-md);
+    }
+    .skip-link:focus { left: 8px; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
+
     .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 14px; margin-top: 8px; }
 
     .toast {
@@ -238,12 +250,19 @@
       .topbar { padding: 12px 16px; }
       .brand h1 { font-size: 18px; }
       .banner { font-size: 11px; padding: 8px 14px; }
+      .layout { padding: 12px; gap: 14px; }
       .wallet-grid { grid-template-columns: 1fr; }
       .tier-pills { grid-template-columns: 1fr; }
+      .btn { padding: 11px 16px; }
+      .btn.small { padding: 10px 14px; }
+      .tab { padding: 12px 12px; }
+      .starter { padding: 8px 14px; }
     }
   </style>
 </head>
 <body>
+
+  <a class="skip-link" href="#main-content">Skip to main content</a>
 
   <header class="topbar">
     <div class="brand">
@@ -280,10 +299,10 @@
 
       <section class="card">
         <h2 class="card-title">Permission tier</h2>
-        <div class="tier-pills">
-          <button type="button" class="tier-pill" data-tier="0">Read-only</button>
-          <button type="button" class="tier-pill" data-tier="1">Draft</button>
-          <button type="button" class="tier-pill" data-tier="2">Limited</button>
+        <div class="tier-pills" role="group" aria-label="Permission tier">
+          <button type="button" class="tier-pill" data-tier="0" aria-pressed="false">Read-only</button>
+          <button type="button" class="tier-pill" data-tier="1" aria-pressed="false">Draft</button>
+          <button type="button" class="tier-pill" data-tier="2" aria-pressed="false">Limited</button>
         </div>
         <p class="tier-help" id="tier-help"></p>
       </section>
@@ -309,18 +328,18 @@
       </section>
     </aside>
 
-    <main class="col-center">
-      <section class="card chat-card">
+    <main class="col-center" id="main-content" tabindex="-1">
+      <section class="card chat-card" aria-labelledby="chat-title">
         <div class="chat-header">
-          <div class="chat-title">Finance assistant</div>
+          <div class="chat-title" id="chat-title">Finance assistant</div>
           <div class="chat-subtitle">Understands your request; verified code does every calculation</div>
         </div>
-        <div class="chat-log" id="chat-log">
+        <div class="chat-log" id="chat-log" role="log" aria-live="polite" aria-label="Conversation with the finance assistant">
           <div class="bubble agent">Hi! Ask things like "What is the cheapest way to send 8000 yuan?" or "Add rent 1800 CNY on 2026-10-05, housing". I never do arithmetic myself: every number comes from verified code, and each answer has a "How I got this" section.</div>
         </div>
-        <div class="starters" id="starters"></div>
+        <div class="starters" id="starters" aria-label="Example questions"></div>
         <form class="chat-form" id="chat-form">
-          <input type="text" id="chat-input" placeholder="Type your question…" autocomplete="off" maxlength="2000">
+          <input type="text" id="chat-input" placeholder="Type your question…" autocomplete="off" maxlength="2000" aria-label="Type your question">
           <button type="submit" class="btn primary" id="chat-send">Send</button>
         </form>
       </section>
@@ -335,15 +354,15 @@
     </aside>
 
     <section class="tabs-wrap">
-      <nav class="tabs" id="tabs">
-        <button class="tab active" data-tab="compare">Compare routes</button>
-        <button class="tab" data-tab="spending">Spending</button>
-        <button class="tab" data-tab="forecast">Forecast</button>
-        <button class="tab" data-tab="quotes">My quotes</button>
-        <button class="tab" data-tab="activity">Activity log</button>
+      <nav class="tabs" id="tabs" role="tablist" aria-label="Sections">
+        <button class="tab active" id="tabbtn-compare" role="tab" aria-selected="true" aria-controls="tab-compare" tabindex="0" data-tab="compare">Compare routes</button>
+        <button class="tab" id="tabbtn-spending" role="tab" aria-selected="false" aria-controls="tab-spending" tabindex="-1" data-tab="spending">Spending</button>
+        <button class="tab" id="tabbtn-forecast" role="tab" aria-selected="false" aria-controls="tab-forecast" tabindex="-1" data-tab="forecast">Forecast</button>
+        <button class="tab" id="tabbtn-quotes" role="tab" aria-selected="false" aria-controls="tab-quotes" tabindex="-1" data-tab="quotes">My quotes</button>
+        <button class="tab" id="tabbtn-activity" role="tab" aria-selected="false" aria-controls="tab-activity" tabindex="-1" data-tab="activity">Activity log</button>
       </nav>
 
-      <div class="tab-panel" id="tab-compare">
+      <div class="tab-panel" id="tab-compare" role="tabpanel" aria-labelledby="tabbtn-compare" tabindex="0">
         <form class="inline-form" id="compare-form">
           <label>Amount to deliver (CNY) <input type="text" id="cmp-amount" value="8000" inputmode="decimal" required></label>
           <label id="cmp-type-wrap">Route type <select id="cmp-type"><option value="">All types</option></select></label>
@@ -354,7 +373,7 @@
         <div id="routes-table"></div>
       </div>
 
-      <div class="tab-panel hidden" id="tab-spending">
+      <div class="tab-panel hidden" id="tab-spending" role="tabpanel" aria-labelledby="tabbtn-spending" tabindex="0">
         <h3 class="section-title">Add expense</h3>
         <form class="inline-form" id="expense-form">
           <label>Name <input type="text" id="exp-name" value="lunch" required></label>
@@ -372,7 +391,7 @@
         <div id="summary-result"></div>
       </div>
 
-      <div class="tab-panel hidden" id="tab-forecast">
+      <div class="tab-panel hidden" id="tab-forecast" role="tabpanel" aria-labelledby="tabbtn-forecast" tabindex="0">
         <h3 class="section-title">Add an upcoming bill or money in</h3>
         <form class="inline-form" id="event-form">
           <label>Name <input type="text" id="ev-name" value="rent" required></label>
@@ -399,7 +418,7 @@
         <div id="forecast-result"></div>
       </div>
 
-      <div class="tab-panel hidden" id="tab-quotes">
+      <div class="tab-panel hidden" id="tab-quotes" role="tabpanel" aria-labelledby="tabbtn-quotes" tabindex="0">
         <p class="muted">Ask a bank or service for a quote, then enter what you would pay in total (all fees included) and how much CNY would arrive. We compare it with the mid-market rate to show the hidden cost.</p>
         <form class="inline-form" id="quote-form">
           <label>Provider <input type="text" id="q-provider" placeholder="e.g. Bank X" required></label>
@@ -410,7 +429,7 @@
         <div id="quotes-table"></div>
       </div>
 
-      <div class="tab-panel hidden" id="tab-activity">
+      <div class="tab-panel hidden" id="tab-activity" role="tabpanel" aria-labelledby="tabbtn-activity" tabindex="0">
         <p class="muted">Every transfer request, confirmation, rejection and limit change is recorded here, including blocked attempts.</p>
         <div id="log-table"></div>
       </div>
@@ -420,7 +439,7 @@
 
   <footer class="footer">Simulated money · prototype · rates are reference rates, not offers</footer>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script src="/static/app.js"></script>
 </body>

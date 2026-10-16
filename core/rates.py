@@ -40,7 +40,14 @@ def get_rate() -> Rate:
             "next_update": rate.next_update,
         }), encoding="utf-8")
         return rate
-    except (requests.RequestException, ValueError, KeyError):
-        cached = json.loads(CACHE.read_text(encoding="utf-8"))
+    except (requests.RequestException, ValueError, KeyError) as e:
+        try:
+            cached = json.loads(CACHE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as cache_error:
+            raise FileNotFoundError(
+                "No saved exchange rate and the live rate could not be "
+                f"fetched ({type(e).__name__}). Connect to the internet once "
+                f"so the rate can be saved to {CACHE}, then start again."
+            ) from cache_error
         return Rate(Decimal(cached["pkr_per_cny"]), cached["as_of"],
                     cached["next_update"], URL, True)

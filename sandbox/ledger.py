@@ -9,7 +9,7 @@ from core.money import Quote
 
 class Sandbox:
     def __init__(self, pkr_balance: Decimal, mandate: Mandate, tier: int,
-                 log_path):
+                 log_path, store=None):
         if pkr_balance < 0:
             raise ValueError("pkr_balance cannot be negative")
         if tier not in (0, 1, 2):
@@ -21,6 +21,34 @@ class Sandbox:
         self.log_path = Path(log_path)
         self.pending = {}
         self._n = 0
+        self.store = store
+
+    @property
+    def next_id(self) -> int:
+        return self._n
+
+    def load(self, *, pkr_balance, cny_balance, tier, next_id, mandate,
+             pending) -> None:
+        """Restore saved state (used by the Store on startup)."""
+        self.pkr_balance = pkr_balance
+        self.cny_balance = cny_balance
+        self.tier = tier
+        self._n = next_id
+        self.mandate = mandate
+        self.pending = pending
+
+    def _persist(self) -> None:
+        if self.store is not None:
+            self.store.save_sandbox(self)
+
+    def save(self) -> None:
+        self._persist()
+
+    def set_tier(self, tier: int) -> None:
+        if tier not in (0, 1, 2):
+            raise ValueError("tier must be 0, 1 or 2")
+        self.tier = tier
+        self._persist()
 
     def _new_id(self) -> str:
         self._n += 1
@@ -48,6 +76,7 @@ class Sandbox:
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         with self.log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+        self._persist()
         return {"transfer_id": tid, "status": status, "reasons": list(reasons)}
 
     def request_transfer(self, q: Quote) -> dict:
