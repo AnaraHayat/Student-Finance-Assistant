@@ -21,7 +21,7 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 | `store.py` | SQLite persistence for wallets, pending transfers, expenses, events and quotes. |
 | `server.py` | FastAPI backend. |
 | `web/` | The web page (HTML + JS). |
-| `tests/` | 117 automated tests. |
+| `tests/` | 127 automated tests. |
 
 ### Permission tiers
 
@@ -55,7 +55,7 @@ uvicorn server:app --reload
 
 Open **http://127.0.0.1:8000**.
 
-**First run needs internet.** The app fetches the PKR/CNY rate from open.er-api.com and saves it to `data/rate_cache.json`. After that it falls back to the cached rate if you're offline. With no internet and no cache, startup fails.
+**First run needs internet.** The app fetches the PKR/CNY rate from open.er-api.com and saves it to `data/rate_cache.json`. After that it falls back to the cached rate if you're offline. With no internet and no cache, startup fails with a plain message telling you to connect once.
 
 ### Turn on the AI (optional)
 
