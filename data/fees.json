@@ -1,0 +1,11 @@
+[
+  {"name": "PLACEHOLDER route 1", "markup": "0.02", "fixed_fee_pkr": "500",
+   "pct_fee": "0.01", "recipient_fee_cny": "0",
+   "source": "PLACEHOLDER - replace with real page URL", "as_of": "not checked"},
+  {"name": "PLACEHOLDER route 2", "markup": "0.01", "fixed_fee_pkr": "1500",
+   "pct_fee": "0", "recipient_fee_cny": "0",
+   "source": "PLACEHOLDER - replace with real page URL", "as_of": "not checked"},
+  {"name": "PLACEHOLDER route 3", "markup": "0.03", "fixed_fee_pkr": "0",
+   "pct_fee": "0", "recipient_fee_cny": "10",
+   "source": "PLACEHOLDER - replace with real page URL", "as_of": "not checked"}
+]

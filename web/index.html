@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudentFX — Finance Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --bg-soft: #eef2f9;
+      --card: #ffffff;
+      --border: #e3e8f0;
+      --border-strong: #cdd6e5;
+      --text: #0f172a;
+      --text-soft: #475569;
+      --muted: #64748b;
+      --primary: #1d4ed8;
+      --primary-dark: #1e3a8a;
+      --primary-soft: #eef2fb;
+      --accent: #3b5bdb;
+      --ok: #15803d;
+      --ok-soft: #dcf5e4;
+      --warn: #b45309;
+      --warn-soft: #fff1d6;
+      --danger: #b91c1c;
+      --danger-soft: #fdecec;
+      --radius: 14px;
+      --radius-sm: 10px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05);
+      --shadow-md: 0 4px 12px rgba(15, 23, 42, .07);
+      --gradient-brand: linear-gradient(120deg, #0b1f44 0%, #1e3a8a 55%, #3b5bdb 100%);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+      gap: 14px; padding: 16px 28px; color: #fff;
+      background: var(--gradient-brand);
+      box-shadow: 0 2px 14px rgba(11, 31, 68, .25);
+    }
+    .brand h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+    .brand p { margin: 2px 0 0; font-size: 12.5px; opacity: .78; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      padding: 6px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+      background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22);
+    }
+
+    .banner {
+      background: linear-gradient(90deg, #fffbeb, #fef3c7); color: #78350f;
+      border-bottom: 1px solid #fde68a; padding: 10px 28px; font-size: 12.5px;
+      font-weight: 500; text-align: center;
+    }
+
+    .layout {
+      display: grid; grid-template-columns: 310px 1fr 300px; gap: 18px;
+      max-width: 1480px; margin: 0 auto; padding: 20px 28px 8px; align-items: start;
+    }
+    .col-left, .col-center, .col-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    .tabs-wrap {
+      grid-column: 1 / -1; min-width: 0; background: var(--card);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 20px; box-shadow: var(--shadow-sm);
+    }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm);
+    }
+    .card-title {
+      margin: 0 0 14px; font-size: 13px; font-weight: 700; color: var(--text-soft);
+      text-transform: uppercase; letter-spacing: .6px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title {
+      margin: 18px 0 10px; font-size: 13px; font-weight: 700; color: var(--text-soft);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+
+    .wallet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .wallet-card {
+      background: linear-gradient(160deg, #ffffff, #f8faff);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px;
+    }
+    .wallet-label { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .wallet-amount { margin-top: 6px; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.5px; line-height: 1.2; word-break: break-all; }
+
+    .tier-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .tier-pill {
+      font: inherit; font-weight: 600; font-size: 12.5px; cursor: pointer;
+      padding: 9px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: #fff; color: var(--muted); transition: all .18s;
+    }
+    .tier-pill:hover { background: var(--primary-soft); border-color: #bcd0ff; color: var(--primary-dark); }
+    .tier-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 4px 14px rgba(29, 78, 216, .28); }
+    .tier-help { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+    .kv { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; font-size: 13px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    .kv.wide { grid-template-columns: 110px 1fr; }
+    .kv.wide dd { text-align: left; font-weight: 600; overflow-wrap: anywhere; }
+
+    .stack-form { display: flex; flex-direction: column; gap: 10px; }
+    .stack-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
+
+    .badge-count {
+      display: inline-grid; place-items: center; min-width: 20px; height: 20px;
+      padding: 0 6px; border-radius: 999px; background: var(--primary-soft);
+      color: var(--primary-dark); font-size: 11px; font-weight: 700;
+    }
+    .pending-card {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 12px 14px; margin-top: 10px; background: linear-gradient(160deg, #fbfcff, #f3f6ff);
+    }
+    .pending-title { font-weight: 700; font-size: 13px; color: var(--primary-dark); }
+    .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+
+    .chat-card { display: flex; flex-direction: column; height: 640px; padding: 0; overflow: hidden; }
+    .chat-header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: linear-gradient(160deg, #ffffff, #f8faff); }
+    .chat-title { font-weight: 700; font-size: 14.5px; }
+    .chat-subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .chat-log {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+      padding: 20px; background: linear-gradient(180deg, #fbfcff, #f8faff);
+    }
+    .bubble {
+      max-width: 82%; padding: 11px 15px; border-radius: 16px; white-space: pre-wrap;
+      overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.55; box-shadow: var(--shadow-sm);
+    }
+    .bubble.user { align-self: flex-end; background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; border-bottom-right-radius: 4px; }
+    .bubble.agent { align-self: flex-start; background: #fff; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .bubble.error { background: var(--danger-soft); color: var(--danger); border-color: #f1c4c4; }
+    .bubble.pending-bubble { opacity: .7; font-style: italic; }
+    .bubble .meta { margin-top: 6px; font-size: 11px; color: var(--muted); }
+    .bubble details { margin-top: 10px; font-size: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
+    .bubble summary { cursor: pointer; color: var(--primary-dark); font-weight: 600; }
+    .bubble pre {
+      margin: 6px 0; padding: 8px 10px; background: var(--bg-soft); border: 1px solid var(--border);
+      border-radius: 8px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+      font-size: 11.5px; font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+
+    .starters { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: #fff; }
+    .starter {
+      font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+      padding: 6px 13px; border-radius: 999px; border: 1px solid #dbe4f5;
+      background: #f8faff; color: var(--primary-dark); transition: all .18s;
+    }
+    .starter:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    .chat-form { display: flex; gap: 8px; padding: 14px 20px 18px; border-top: 1px solid var(--border); background: #fff; }
+    .chat-form input { flex: 1; padding: 11px 14px; font-size: 13.5px; }
+
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .tab {
+      font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+      background: none; border: 0; border-bottom: 3px solid transparent;
+      padding: 10px 14px; color: var(--muted); border-radius: 6px 6px 0 0;
+    }
+    .tab:hover { color: var(--primary); background: var(--primary-soft); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .inline-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; }
+    .inline-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); font-weight: 600; min-width: 0; }
+    select, input {
+      font: inherit; color: inherit; padding: 9px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); background: #fff; min-width: 0; font-size: 13px;
+    }
+    select:focus, input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(29, 78, 216, .12); }
+    select { width: 100%; min-width: 140px; }
+
+    .btn {
+      font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+      padding: 9px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: #fff; color: var(--text); transition: all .18s; white-space: nowrap;
+    }
+    .btn:hover { background: var(--primary-soft); border-color: #bcd0ff; }
+    .btn.primary { background: linear-gradient(135deg, var(--primary), var(--accent)); border-color: var(--primary); color: #fff; }
+    .btn.primary:hover { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); }
+    .btn.ghost { color: var(--danger); border-color: #f1c4c4; }
+    .btn.ghost:hover { background: var(--danger-soft); }
+    .btn.small { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .table-wrap { overflow-x: auto; margin: 10px 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; }
+    table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; background: var(--bg-soft); font-weight: 700; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: #f8faff; }
+    tbody tr.best td { background: #eaf6ee; }
+
+    .muted { color: var(--muted); font-size: 13px; margin: 6px 0; }
+    .hidden { display: none !important; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .badge.warn { background: var(--warn-soft); color: var(--warn); }
+    .badge.ok { background: var(--ok-soft); color: var(--ok); }
+    .result-box {
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 14px 16px; background: linear-gradient(160deg, #fbfcff, #f3f6ff);
+      margin: 10px 0; font-size: 13px; line-height: 1.7;
+    }
+    .result-box.alert { border-color: #f1c4c4; background: linear-gradient(160deg, #fff5f5, #fdecec); }
+    .error-text { color: var(--danger); font-weight: 600; }
+    .warn-text { color: var(--warn); font-weight: 600; font-size: 12.5px; margin: 10px 0 0; }
+
+    .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 14px; margin-top: 8px; }
+
+    .toast {
+      position: fixed; right: 22px; bottom: 22px; max-width: 380px;
+      background: #0f172a; color: #fff; padding: 13px 18px;
+      border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+      opacity: 0; transform: translateY(12px); pointer-events: none; transition: all .28s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--danger); }
+
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; padding: 14px; }
+      .chat-card { height: 520px; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 12px 16px; }
+      .brand h1 { font-size: 18px; }
+      .banner { font-size: 11px; padding: 8px 14px; }
+      .wallet-grid { grid-template-columns: 1fr; }
+      .tier-pills { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <h1>StudentFX</h1>
+      <p>PKR → CNY finance assistant for students in China</p>
+    </div>
+    <div class="chips">
+      <span class="chip" id="rate-chip">Loading rate…</span>
+      <span class="chip" id="mode-chip">AI: connecting…</span>
+    </div>
+  </header>
+
+  <div class="banner">
+    Sandbox: balances and transfers are simulated. Fee data is illustrative unless a route shows a real source.
+    The rate is a mid-market reference rate, not a rate any provider offers. Not financial advice.
+  </div>
+
+  <div class="layout">
+
+    <aside class="col-left">
+      <section class="card">
+        <h2 class="card-title">Wallets (sandbox)</h2>
+        <div class="wallet-grid">
+          <div class="wallet-card">
+            <div class="wallet-label">PKR</div>
+            <div class="wallet-amount" id="bal-pkr">0</div>
+          </div>
+          <div class="wallet-card">
+            <div class="wallet-label">CNY</div>
+            <div class="wallet-amount" id="bal-cny">0</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Permission tier</h2>
+        <div class="tier-pills">
+          <button type="button" class="tier-pill" data-tier="0">Read-only</button>
+          <button type="button" class="tier-pill" data-tier="1">Draft</button>
+          <button type="button" class="tier-pill" data-tier="2">Limited</button>
+        </div>
+        <p class="tier-help" id="tier-help"></p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Your limits</h2>
+        <p class="muted">Hard limits the assistant can never exceed. Only you can change them, and each change is logged.</p>
+        <form class="stack-form" id="mandate-form">
+          <label>Max per transfer (CNY) <input type="text" id="md-max" inputmode="decimal" required></label>
+          <label>Auto-execute up to (CNY, tier 2 only) <input type="text" id="md-auto" inputmode="decimal" required></label>
+          <label>Worst rate allowed (PKR per CNY) <input type="text" id="md-rate" inputmode="decimal" required></label>
+          <button type="submit" class="btn primary">Save limits</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">
+          Waiting for you
+          <span class="badge-count" id="pending-count">0</span>
+        </h2>
+        <p class="muted">Only you can confirm or reject. The assistant cannot.</p>
+        <div id="pending-list"></div>
+      </section>
+    </aside>
+
+    <main class="col-center">
+      <section class="card chat-card">
+        <div class="chat-header">
+          <div class="chat-title">Finance assistant</div>
+          <div class="chat-subtitle">Understands your request; verified code does every calculation</div>
+        </div>
+        <div class="chat-log" id="chat-log">
+          <div class="bubble agent">Hi! Ask things like "What is the cheapest way to send 8000 yuan?" or "Add rent 1800 CNY on 2026-10-05, housing". I never do arithmetic myself: every number comes from verified code, and each answer has a "How I got this" section.</div>
+        </div>
+        <div class="starters" id="starters"></div>
+        <form class="chat-form" id="chat-form">
+          <input type="text" id="chat-input" placeholder="Type your question…" autocomplete="off" maxlength="2000">
+          <button type="submit" class="btn primary" id="chat-send">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <aside class="col-right">
+      <section class="card">
+        <h2 class="card-title">Data &amp; trust</h2>
+        <dl class="kv wide" id="trust-info"></dl>
+        <p class="warn-text" id="trust-note"></p>
+      </section>
+    </aside>
+
+    <section class="tabs-wrap">
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="compare">Compare routes</button>
+        <button class="tab" data-tab="spending">Spending</button>
+        <button class="tab" data-tab="forecast">Forecast</button>
+        <button class="tab" data-tab="quotes">My quotes</button>
+        <button class="tab" data-tab="activity">Activity log</button>
+      </nav>
+
+      <div class="tab-panel" id="tab-compare">
+        <form class="inline-form" id="compare-form">
+          <label>Amount to deliver (CNY) <input type="text" id="cmp-amount" value="8000" inputmode="decimal" required></label>
+          <label id="cmp-type-wrap">Route type <select id="cmp-type"><option value="">All types</option></select></label>
+          <button type="submit" class="btn primary">Compare</button>
+        </form>
+        <div id="compare-result"></div>
+        <h3 class="section-title">Routes in the data</h3>
+        <div id="routes-table"></div>
+      </div>
+
+      <div class="tab-panel hidden" id="tab-spending">
+        <h3 class="section-title">Add expense</h3>
+        <form class="inline-form" id="expense-form">
+          <label>Name <input type="text" id="exp-name" value="lunch" required></label>
+          <label>Date <input type="date" id="exp-date" required></label>
+          <label>Amount (CNY) <input type="text" id="exp-amount" value="25" inputmode="decimal" required></label>
+          <label>Category <input type="text" id="exp-cat" value="food" required></label>
+          <button type="submit" class="btn primary">Add</button>
+        </form>
+        <h3 class="section-title">Monthly summary</h3>
+        <form class="inline-form" id="summary-form">
+          <label>Month <input type="month" id="sum-month"></label>
+          <button type="submit" class="btn">Show summary</button>
+        </form>
+        <p class="muted">Hidden cost appears once a transfer has been executed, because it compares the rate you actually paid with the mid-market rate.</p>
+        <div id="summary-result"></div>
+      </div>
+
+      <div class="tab-panel hidden" id="tab-forecast">
+        <h3 class="section-title">Add an upcoming bill or money in</h3>
+        <form class="inline-form" id="event-form">
+          <label>Name <input type="text" id="ev-name" value="rent" required></label>
+          <label>Date <input type="date" id="ev-date" required></label>
+          <label>Amount (CNY) <input type="text" id="ev-amount" value="1800" inputmode="decimal" required></label>
+          <label>Type
+            <select id="ev-kind">
+              <option value="obligation">Bill (money out)</option>
+              <option value="inflow">Money in</option>
+            </select>
+          </label>
+          <button type="submit" class="btn primary">Add</button>
+        </form>
+        <h3 class="section-title">Run forecast</h3>
+        <form class="inline-form" id="forecast-form">
+          <label>From <input type="date" id="fc-start" required></label>
+          <label>To <input type="date" id="fc-end" required></label>
+          <label>Start balance (CNY, optional) <input type="text" id="fc-balance" placeholder="uses wallet" inputmode="decimal"></label>
+          <label>Safety buffer (CNY) <input type="text" id="fc-buffer" value="0" inputmode="decimal"></label>
+          <label>Transfer takes (days) <input type="number" id="fc-lead" value="3" min="0"></label>
+          <button type="submit" class="btn primary">Forecast</button>
+        </form>
+        <p class="muted">Transfer time is an assumption. Replace it with the real time of your route.</p>
+        <div id="forecast-result"></div>
+      </div>
+
+      <div class="tab-panel hidden" id="tab-quotes">
+        <p class="muted">Ask a bank or service for a quote, then enter what you would pay in total (all fees included) and how much CNY would arrive. We compare it with the mid-market rate to show the hidden cost.</p>
+        <form class="inline-form" id="quote-form">
+          <label>Provider <input type="text" id="q-provider" placeholder="e.g. Bank X" required></label>
+          <label>Total PKR you pay <input type="text" id="q-pkr" placeholder="100000" inputmode="decimal" required></label>
+          <label>CNY that arrives <input type="text" id="q-cny" placeholder="2350" inputmode="decimal" required></label>
+          <button type="submit" class="btn primary">Analyse</button>
+        </form>
+        <div id="quotes-table"></div>
+      </div>
+
+      <div class="tab-panel hidden" id="tab-activity">
+        <p class="muted">Every transfer request, confirmation, rejection and limit change is recorded here, including blocked attempts.</p>
+        <div id="log-table"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="footer">Simulated money · prototype · rates are reference rates, not offers</footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
