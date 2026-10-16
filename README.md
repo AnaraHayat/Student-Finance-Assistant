@@ -44,16 +44,22 @@ cd Student-Finance-Assistant
 
 # 2. (Optional) virtual environment
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-# 3. Install
+# 3. Activate it — pick the line for your shell:
+.venv\Scripts\Activate.ps1        # Windows PowerShell
+# .venv\Scripts\activate.bat      # Windows cmd.exe
+# source .venv/bin/activate       # macOS / Linux
+
+# 4. Install
 pip install -r requirements.txt
 
-# 4. Start the app
+# 5. Start the app
 uvicorn server:app --reload
 ```
 
 Open **http://127.0.0.1:8000**.
+
+**Windows notes.** Use the Windows `py` launcher if plain `python` is not found: `py -3.12 -m venv .venv`. If PowerShell refuses `Activate.ps1` ("running scripts is disabled on this system"), run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once in that window, or use `cmd.exe` and `.venv\Scripts\activate.bat`. You can also skip activation entirely and call the venv's Python directly, e.g. `.venv\Scripts\python.exe -m uvicorn server:app --reload`.
 
 **First run needs internet.** The app fetches the PKR/CNY rate from open.er-api.com and saves it to `data/rate_cache.json`. After that it falls back to the cached rate if you're offline. With no internet and no cache, startup fails with a plain message telling you to connect once.
 
