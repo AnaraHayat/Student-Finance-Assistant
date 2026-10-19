@@ -11,6 +11,17 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 
 > **Fee data is partly sourced.** `data/fees.json` lists real providers (ICBC Pakistan, Bank Alfalah) with published fixed/percentage fees and a source link and date. Banks do not publish the exchange-rate markup over mid-market, so `markup` is set to 0 and every route is flagged **illustrative**. Fix the markup from your own quote before trusting the ranking (see below).
 
+**Repository:** https://github.com/AnaraHayat/Student-Finance-Assistant
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/01-technical-documentation.md](docs/01-technical-documentation.md) | Architecture (with diagram), the core cost/forecast/mandate algorithm, and the security design. |
+| [docs/05-security-self-assessment.md](docs/05-security-self-assessment.md) | Permission tiers and how they are enforced, plus an honest known-risk list. |
+| [docs/06-execution-evidence.md](docs/06-execution-evidence.md) | Proof the project runs: sandbox session transcript, audit log, tests, and the demo-video plan. |
+| [docs/evidence/](docs/evidence/) | The raw evidence files (transcript, audit log, security events, test output). |
+
 ## How it works
 
 | Folder | What it does |
@@ -21,7 +32,7 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 | `store.py` | SQLite persistence for wallets, pending transfers, expenses, events and quotes. |
 | `server.py` | FastAPI backend. |
 | `web/` | The web page (HTML + JS). |
-| `tests/` | 143 automated tests. |
+| `tests/` | 148 automated tests. |
 
 ### Permission tiers
 
@@ -63,6 +74,35 @@ Open **http://127.0.0.1:8000**.
 
 **First run needs internet.** The app fetches the PKR/CNY rate from open.er-api.com and saves it to `data/rate_cache.json`. After that it falls back to the cached rate if you're offline. With no internet and no cache, startup fails with a plain message telling you to connect once.
 
+## Deployment (step by step)
+
+1. **Install Python 3.10+** and confirm it works: `python --version`.
+2. **Clone the repo** and enter it:
+   `git clone https://github.com/AnaraHayat/Student-Finance-Assistant.git`
+   `cd Student-Finance-Assistant`
+3. **Create and activate a virtual environment**:
+   `python -m venv .venv`
+   Windows PowerShell: `.venv\Scripts\Activate.ps1`
+   Windows cmd: `.venv\Scripts\activate.bat`
+   macOS/Linux: `source .venv/bin/activate`
+4. **Install dependencies**: `pip install -r requirements.txt`.
+5. **Create `.env`** from the example: copy `.env.example` to `.env`.
+6. **Set an access token** (required for any non-local use). Generate one and paste it in:
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+   ```
+   ACCESS_TOKEN=<the value you generated>
+   ```
+7. **Configure the rest of `.env`** as needed: `SESSION_TTL`, `ALLOWED_HOSTS`, `LOCAL_ONLY=1`, and the optional Gemini settings (see below).
+8. **Do a first run to fetch the rate** (`data/rate_cache.json` will be created):
+   `uvicorn server:app --host 127.0.0.1 --port 8000`
+9. **Verify**: open http://127.0.0.1:8000, sign in with the access token, and confirm the header shows the live rate and the audit chain is "verified".
+10. **Run the tests**: `pytest` (expect `148 passed`).
+11. **For a real deployment, add TLS** — either terminate it in a reverse proxy (Caddy/nginx) or run:
+    `uvicorn server:app --host 0.0.0.0 --port 8443 --ssl-keyfile key.pem --ssl-certfile cert.pem`
+    With TLS, cookies are marked `Secure` and HSTS is sent. Do not expose the app to the internet without TLS *and* a real `ACCESS_TOKEN`.
+
 ### Turn on the AI (optional)
 
 Without an API key the app runs in **demo mode** using a simple mock assistant. To use Gemini:
@@ -86,11 +126,11 @@ This is a sandbox, but the finance controls are enforced in code, not by the AI.
   ```bash
   python -c "import secrets; print(secrets.token_urlsafe(32))"
   ```
-- **Idle timeout.** `SESSION_TTL` (default 1800 seconds) signs you out after inactivity, and every session has an 8-hour absolute cap. **Lock** in the header ends the session immediately.
-- **Rate limits.** Chat has its own limit, and every state-changing API call is limited per client.
-- **Input caps.** Request bodies, tool arguments, tool names and free-text fields are length-limited.
-- **Headers and hosts.** The app sends a strict Content-Security-Policy plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and cross-origin isolation headers. Only the hosts in `ALLOWED_HOSTS` are answered (default `127.0.0.1,localhost`).
-- **Tamper-evident audit log.** Every audit entry carries a SHA-256 hash of the previous entry. On startup the chain is checked and the result appears under *Data & trust*; an edit to the file is detected.
+- **Idle timeout.** `SESSION_TTL` (default 1800 seconds, clamped to 60–86400) signs you out after inactivity, and every session has an 8-hour absolute cap. **Lock** in the header ends the session immediately.
+- **Rate limits.** Chat has its own limit, every state-changing API call is limited per client, and sign-in is throttled separately. Server-side soft caps like these are best effort; they are not a substitute for a real access token.
+- **Input caps.** Request bodies, tool arguments, tool names, free-text fields and numeric values (length and magnitude) are bounded, so a crafted value cannot tie up the server.
+- **Headers and hosts.** The app sends a Content-Security-Policy plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-XSS-Protection: 0` and cross-origin isolation headers. The UI loads Tailwind, Font Awesome and Chart.js from CDNs, so the policy allows those specific origins and inline script/style; everything else is still locked down. Headers are attached to error responses too, and API responses are `Cache-Control: no-store`. Only the hosts in `ALLOWED_HOSTS` are answered (default `127.0.0.1,localhost`).
+- **Tamper-evident audit log.** Every audit entry carries a SHA-256 hash of the previous entry. The chain is checked at startup and re-checked while the app runs; the result appears under *Data & trust*, and an edit to the file flips it to "NOT verified".
 - **Safer failures.** Unexpected errors no longer expose exception types to the browser, and security events (failed logins, bad CSRF tokens, rate-limit hits) go to `logs/security.jsonl`.
 - **Dependency auditing.** CI runs `pip-audit` against `requirements.txt` on every push.
 - **Persistence.** SQLite queries are parameterized, money is stored as text and kept in `Decimal`, `.env` and the database are git-ignored, and file permissions are tightened to owner-only on POSIX.
@@ -139,11 +179,30 @@ Edit `data/fees.json`. One entry per route:
 - `source` and `as_of`: where and when you checked. Keep these honest. The app flags any route whose source or date says "placeholder", "illustrative" or "not checked".
 - Use strings for the numbers.
 
-## Run the tests
+## Test cases
+
+The suite has **148 tests**. Run it with:
 
 ```bash
-pytest
+pytest -q
 ```
+
+They map to the main features like this:
+
+| Feature | Test file(s) | What is proven |
+|---|---|---|
+| Route cost model | `tests/test_money.py`, `tests/test_routes.py`, `tests/test_route_types.py` | Quote maths, cheapest-first ordering, real `fees.json` loads, route-type filtering. |
+| User quote check | `tests/test_user_quote.py` | Hidden cost over mid-market, including a better-than-mid result. |
+| Spending summary | `tests/test_spending.py` | Totals, categories, month filtering, mid vs effective rate. |
+| Cash-flow forecast | `tests/test_forecast.py` | Shortfalls, top-up, buffer, late transfers, boundary dates. |
+| Mandate / tiers | `tests/test_mandate.py`, `tests/test_sandbox.py` | Tier 0 blocks, tier 1 drafts, tier 2 auto-executes within limit; caps, rate ceiling and route allow-list block; balances only change on confirm. |
+| AI agent + tools | `tests/test_agent.py`, `tests/test_tools.py`, `tests/test_mock.py`, `tests/test_loop_limits.py`, `tests/test_llm.py`, `tests/test_llm_speed.py` | Tool whitelist has no confirm/reject; the AI cannot confirm; step/time limits; fallbacks; no key leakage. |
+| API + persistence | `tests/test_server.py`, `tests/test_server_data.py`, `tests/test_store.py` | Login, chat, transfer lifecycle, tier/mandate endpoints, audit log; state survives a restart. |
+| Security | `tests/test_security.py`, `tests/test_hardening.py` | Auth, CSRF, login throttle, hardened headers, input caps, audit tamper detection, host allow-list. |
+
+For a runnable, end-to-end demonstration (not a unit test), see
+`scripts/capture_evidence.py` and the transcript it produced in
+[docs/06-execution-evidence.md](docs/06-execution-evidence.md).
 
 The `check_*.py` files in the root are manual scripts for trying the rate API, the Gemini connection, speed, and the agent. Most need a valid API key.
 

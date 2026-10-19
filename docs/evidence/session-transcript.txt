@@ -1,0 +1,383 @@
+StudentFX -- sandbox execution evidence
+Generated (UTC): 2026-10-19T15:47:41.740564+00:00
+Python: 3.14.0  Platform: Windows-10-10.0.19045-SP0
+Mid-market rate: 1 CNY = 41.392442 PKR (source: https://open.er-api.com/v6/latest/CNY, as of Mon, 19 Oct 2026 00:02:32 +0000)
+Routes loaded from data/fees.json: ['ICBC Pakistan TT to ICBC China account', 'ICBC Pakistan TT to another bank', 'Bank Alfalah outward remittance']
+========================================================================
+
+[01] GET /api/state (no session -- must be rejected)
+     HTTP 401
+     {
+       "detail": "Please sign in."
+     }
+
+[02] POST /api/login with the access token
+     HTTP 200
+     {
+       "ok": true,
+       "auth": true,
+       "csrf": "bbUalnxEgUTASonw_y00QqVrlpnXsa9W_ZTIETpfrPc"
+     }
+
+[03] GET /api/state (authenticated)
+     HTTP 200
+     {
+       "llm_mode": "demo (mock model)",
+       "audit_ok": true,
+       "today": "2026-10-19",
+       "rate": {
+         "pkr_per_cny": "41.392442",
+         "as_of": "Mon, 19 Oct 2026 00:02:32 +0000",
+         "from_cache": false,
+         "source": "https://open.er-api.com/v6/latest/CNY"
+       },
+       "balances": {
+         "pkr": "2000000",
+         "cny": "0"
+       },
+       "tier": 1,
+       "mandate": {
+         "max_transfer_cny": "50000",
+         "auto_execute_limit_cny": "0",
+         "max_pkr_per_cny": "60"
+       },
+       "pending": [],
+       "routes": [
+         {
+           "name": "ICBC Pakistan TT to ICBC China account",
+           "route_type": "bank_transfer",
+           "typical_days": 3,
+           "supports_tuition": true,
+           "source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT 0.08% (min USD5/max USD40) + USD10 SWIFT; cny_to_deliver assumed paid in, caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "as_of": "2026-10-17",
+           "illustrative": true
+         },
+         {
+           "name": "ICBC Pakistan TT to another bank",
+           "route_type": "bank_transfer",
+           "typical_days": 3,
+           "supports_tuition": true,
+           "source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT to other banks 0.1% (min USD5/max USD50) + USD10 SWIFT; caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "as_of": "2026-10-17",
+           "illustrative": true
+         },
+         {
+           "name": "Bank Alfalah outward remittance",
+           "route_type": "bank_transfer",
+           "typical_days": 4,
+           "supports_tuition": true,
+           "source": "Bank Alfalah Schedule of Bank Charges Jul-Dec 2026, https://prodbaf.blob.core.windows.net/data/Schedule%20of%20Charges%20July%20-%20Dec%202026%20(conventional).pdf - outward remittance own fee free, correspondent bank charges USD30-50 by slab (USD30 used, for amounts under USD5000); USD fee converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "as_of": "2026-10-17",
+           "illustrative": true
+         }
+       ],
+       "expenses": [],
+       "events": [],
+       "my_quotes": [],
+       "auth_required": true
+     }
+
+[04] POST /api/tool compare_routes 8000 CNY
+     HTTP 200
+     {
+       "mid_rate": "41.392442",
+       "quotes": [
+         {
+           "route": "ICBC Pakistan TT to ICBC China account",
+           "route_type": "bank_transfer",
+           "typical_days": 3,
+           "supports_tuition": true,
+           "cny_to_send": "8000",
+           "offered_rate": "41.3924",
+           "total_pkr": "334174.28",
+           "effective_rate": "41.7718",
+           "hidden_cost_pkr": "3034.74",
+           "hidden_cost_pct": "0.0092",
+           "fee_source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT 0.08% (min USD5/max USD40) + USD10 SWIFT; cny_to_deliver assumed paid in, caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "fees_as_of": "2026-10-17"
+         },
+         {
+           "route": "ICBC Pakistan TT to another bank",
+           "route_type": "bank_transfer",
+           "typical_days": 3,
+           "supports_tuition": true,
+           "cny_to_send": "8000",
+           "offered_rate": "41.3924",
+           "total_pkr": "334240.51",
+           "effective_rate": "41.7801",
+           "hidden_cost_pkr": "3100.97",
+           "hidden_cost_pct": "0.0094",
+           "fee_source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT to other banks 0.1% (min USD5/max USD50) + USD10 SWIFT; caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "fees_as_of": "2026-10-17"
+         },
+         {
+           "route": "Bank Alfalah outward remittance",
+           "route_type": "bank_transfer",
+           "typical_days": 4,
+           "supports_tuition": true,
+           "cny_to_send": "8000",
+           "offered_rate": "41.3924",
+           "total_pkr": "339449.02",
+           "effective_rate": "42.4311",
+           "hidden_cost_pkr": "8309.48",
+           "hidden_cost_pct": "0.0251",
+           "fee_source": "Bank Alfalah Schedule of Bank Charges Jul-Dec 2026, https://prodbaf.blob.core.windows.net/data/Schedule%20of%20Charges%20July%20-%20Dec%202026%20(conventional).pdf - outward remittance own fee free, correspondent bank charges USD30-50 by slab (USD30 used, for amounts under USD5000); USD fee converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+           "fees_as_of": "2026-10-17"
+         }
+       ]
+     }
+
+[05] POST /api/tool request_transfer ICBC Pakistan TT to ICBC China account 3000 CNY (tier 1 -> pending)
+     HTTP 200
+     {
+       "transfer_id": "T0001",
+       "status": "pending_confirmation",
+       "reasons": [
+         "tier 1: drafts only, user must confirm"
+       ],
+       "total_pkr": "127046.50"
+     }
+
+[06] POST /api/confirm/T0001 (user confirms)
+     HTTP 200
+     {
+       "transfer_id": "T0001",
+       "status": "executed",
+       "reasons": [
+         "confirmed by user"
+       ]
+     }
+
+[07] POST /api/tool request_transfer ICBC Pakistan TT to ICBC China account 5000 CNY (-> pending)
+     HTTP 200
+     {
+       "transfer_id": "T0002",
+       "status": "pending_confirmation",
+       "reasons": [
+         "tier 1: drafts only, user must confirm"
+       ],
+       "total_pkr": "209897.61"
+     }
+
+[08] POST /api/reject/T0002 (user rejects)
+     HTTP 200
+     {
+       "transfer_id": "T0002",
+       "status": "rejected",
+       "reasons": [
+         "rejected by user"
+       ]
+     }
+
+[09] POST /api/tool add_expense lunch today
+     HTTP 200
+     {
+       "ok": true,
+       "expense_count": 1
+     }
+
+[10] POST /api/tool spending_summary 2026-10
+     HTTP 200
+     {
+       "year": 2026,
+       "month": 10,
+       "count": 1,
+       "total_cny": "25",
+       "total_pkr_mid": "1034.81",
+       "total_pkr_effective": "1034.81",
+       "hidden_cost_pkr": "0.00",
+       "categories": [
+         {
+           "category": "food",
+           "cny": "25",
+           "pkr_mid": "1034.81",
+           "pkr_effective": "1034.81",
+           "share": "1.0000"
+         }
+       ]
+     }
+
+[11] POST /api/tool add_event rent in 5 days
+     HTTP 200
+     {
+       "ok": true,
+       "event_count": 1
+     }
+
+[12] POST /api/tool forecast_cashflow (next 30 days)
+     HTTP 200
+     {
+       "min_balance_cny": "1200",
+       "min_balance_date": "2026-10-24",
+       "first_shortfall_date": null,
+       "topup_needed_cny": "0",
+       "transfer_by": null,
+       "is_late": false
+     }
+
+[13] POST /api/quotes (analyse a real quote: 100000 PKR -> 2350 CNY)
+     HTTP 200
+     {
+       "provider": "Bank X",
+       "on": "2026-10-19",
+       "pkr_paid": "100000",
+       "cny_received": "2350",
+       "mid_rate": "41.392442",
+       "effective_rate": "42.5532",
+       "hidden_cost_pkr": "2727.76",
+       "hidden_cost_pct": "0.0280"
+     }
+
+[14] POST /api/chat 'cheapest way to send 9000 CNY'
+     HTTP 200
+     {
+       "text": "[Demo mode] Cheapest route: ICBC Pakistan TT to ICBC China account, total 375599.83 PKR (effective rate 41.7333, hidden cost 3067.86 PKR). Fee source: ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT 0.08% (min USD5/max USD40) + USD10 SWIFT; cny_to_deliver assumed paid in, caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative (as of 2026-10-17).",
+       "trace": [
+         {
+           "tool": "compare_routes",
+           "args": {
+             "cny_to_deliver": 9000.0
+           },
+           "result": {
+             "mid_rate": "41.392442",
+             "quotes": [
+               {
+                 "route": "ICBC Pakistan TT to ICBC China account",
+                 "route_type": "bank_transfer",
+                 "typical_days": 3,
+                 "supports_tuition": true,
+                 "cny_to_send": "9000.0",
+                 "offered_rate": "41.3924",
+                 "total_pkr": "375599.83",
+                 "effective_rate": "41.7333",
+                 "hidden_cost_pkr": "3067.86",
+                 "hidden_cost_pct": "0.0082",
+                 "fee_source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT 0.08% (min USD5/max USD40) + USD10 SWIFT; cny_to_deliver assumed paid in, caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+                 "fees_as_of": "2026-10-17"
+               },
+               {
+                 "route": "ICBC Pakistan TT to another bank",
+                 "route_type": "bank_transfer",
+                 "typical_days": 3,
+                 "supports_tuition": true,
+                 "cny_to_send": "9000.0",
+                 "offered_rate": "41.3924",
+                 "total_pkr": "375674.34",
+                 "effective_rate": "41.7416",
+                 "hidden_cost_pkr": "3142.36",
+                 "hidden_cost_pct": "0.0084",
+                 "fee_source": "ICBC Pakistan Schedule of Charges Jul-Dec 2026, https://v.icbc.com.cn/userfiles/resources/icbc/haiwai/karachi/download/2026/icbc_pakistan_branches_schedule_of_charges_jul_1st_2026_to_dec_31st_2026.pdf - outward TT to other banks 0.1% (min USD5/max USD50) + USD10 SWIFT; caps not modelled; USD fees converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+                 "fees_as_of": "2026-10-17"
+               },
+               {
+                 "route": "Bank Alfalah outward remittance",
+                 "route_type": "bank_transfer",
+                 "typical_days": 4,
+                 "supports_tuition": true,
+                 "cny_to_send": "9000.0",
+                 "offered_rate": "41.3924",
+                 "total_pkr": "380841.46",
+                 "effective_rate": "42.3157",
+                 "hidden_cost_pkr": "8309.48",
+                 "hidden_cost_pct": "0.0223",
+                 "fee_source": "Bank Alfalah Schedule of Bank Charges Jul-Dec 2026, https://prodbaf.blob.core.windows.net/data/Schedule%20of%20Charges%20July%20-%20Dec%202026%20(conventional).pdf - outward remittance own fee free, correspondent bank charges USD30-50 by slab (USD30 used, for amounts under USD5000); USD fee converted at USD/PKR 276.982736 (open.er-api.com, 2026-10-16); FX markup not published by the bank, so markup is illustrative",
+                 "fees_as_of": "2026-10-17"
+               }
+             ]
+           }
+         }
+       ],
+       "stopped": false,
+       "seconds": 0.0
+     }
+
+[15] GET /api/log (the audit trail)
+     HTTP 200
+     {
+       "entries": [
+         {
+           "cny_balance_after": "0",
+           "cny_to_deliver": "3000",
+           "event": "request",
+           "hash": "e3a1bc2b08a36b5fd83f3b6e2ab0199a809338d37900d473d423bfec79a0ccc6",
+           "offered_rate": "41.3924",
+           "pkr_balance_after": "2000000",
+           "prev": "",
+           "reasons": [
+             "tier 1: drafts only, user must confirm"
+           ],
+           "route": "ICBC Pakistan TT to ICBC China account",
+           "status": "pending_confirmation",
+           "tier": 1,
+           "total_pkr": "127046.50",
+           "transfer_id": "T0001",
+           "ts": "2026-10-19T15:47:42.098079+00:00"
+         },
+         {
+           "cny_balance_after": "3000",
+           "cny_to_deliver": "3000",
+           "event": "confirm",
+           "hash": "992e3a5dc3fcf57045a5143eba6390ad8879fb3666a0511f01ab6bcc253c9a0d",
+           "offered_rate": "41.3924",
+           "pkr_balance_after": "1872953.50",
+           "prev": "e3a1bc2b08a36b5fd83f3b6e2ab0199a809338d37900d473d423bfec79a0ccc6",
+           "reasons": [
+             "confirmed by user"
+           ],
+           "route": "ICBC Pakistan TT to ICBC China account",
+           "status": "executed",
+           "tier": 1,
+           "total_pkr": "127046.50",
+           "transfer_id": "T0001",
+           "ts": "2026-10-19T15:47:42.104455+00:00"
+         },
+         {
+           "cny_balance_after": "3000",
+           "cny_to_deliver": "5000",
+           "event": "request",
+           "hash": "b82bc5b8a8ce6b900b7ed31f79618823eb38d6b98404d772d716ab5d2d436274",
+           "offered_rate": "41.3924",
+           "pkr_balance_after": "1872953.50",
+           "prev": "992e3a5dc3fcf57045a5143eba6390ad8879fb3666a0511f01ab6bcc253c9a0d",
+           "reasons": [
+             "tier 1: drafts only, user must confirm"
+           ],
+           "route": "ICBC Pakistan TT to ICBC China account",
+           "status": "pending_confirmation",
+           "tier": 1,
+           "total_pkr": "209897.61",
+           "transfer_id": "T0002",
+           "ts": "2026-10-19T15:47:42.116277+00:00"
+         },
+         {
+           "cny_balance_after": "3000",
+           "cny_to_deliver": "5000",
+           "event": "reject",
+           "hash": "141a4201089277e55a79d67f11275f900048c9e2233fa3c04376af671b112ffd",
+           "offered_rate": "41.3924",
+           "pkr_balance_after": "1872953.50",
+           "prev": "b82bc5b8a8ce6b900b7ed31f79618823eb38d6b98404d772d716ab5d2d436274",
+           "reasons": [
+             "rejected by user"
+           ],
+           "route": "ICBC Pakistan TT to ICBC China account",
+           "status": "rejected",
+           "tier": 1,
+           "total_pkr": "209897.61",
+           "transfer_id": "T0002",
+           "ts": "2026-10-19T15:47:42.124919+00:00"
+         }
+       ]
+     }
+
+[16] POST /api/logout
+     HTTP 200
+     {
+       "ok": true
+     }
+
+[17] GET /api/state after logout (must be rejected again)
+     HTTP 401
+     {
+       "detail": "Please sign in."
+     }

@@ -1,0 +1,3 @@
+audit-log.jsonl hash-chain verification
+entries: 4
+result: OK (chain intact)
