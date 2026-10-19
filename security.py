@@ -119,6 +119,12 @@ def log_security(event: str, host: str = "", detail: str = "") -> None:
     try:
         with _log_lock:
             _LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if (_LOG_PATH.exists()
+                        and _LOG_PATH.stat().st_size > 1_000_000):
+                    os.replace(_LOG_PATH, _LOG_PATH.with_suffix(".jsonl.1"))
+            except OSError:
+                pass
             with _LOG_PATH.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(entry) + "\n")
             restrict_file(_LOG_PATH)

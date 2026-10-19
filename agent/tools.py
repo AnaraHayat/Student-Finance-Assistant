@@ -9,12 +9,18 @@ from core.spending import Expense, summarize
 
 
 def _d(x) -> Decimal:
+    text = str(x).strip()
+    if len(text) > 48:
+        raise ValueError("number is too long")
     try:
-        v = Decimal(str(x))
+        v = Decimal(text)
     except InvalidOperation:
         raise ValueError(f"not a number: {x!r}")
     if not v.is_finite():
         raise ValueError(f"not a finite number: {x!r}")
+    # Bound the exponent so a huge value cannot make arithmetic slow.
+    if v != 0 and not -15 <= v.adjusted() <= 15:
+        raise ValueError("number is out of range")
     return v
 
 

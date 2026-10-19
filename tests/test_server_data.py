@@ -36,7 +36,8 @@ def make_client(tmp_path, model=None):
     tb = ToolBox(sb, [B], RATE)
     agent = Agent(model or MockModel(), tb, today=date(2026, 10, 12))
     st = AppState(sb, tb, agent, RATE, [B], "mock")
-    return TestClient(create_app(st)), st
+    return TestClient(create_app(st, access_token="", local_only=False,
+                                 allowed_hosts=["testserver"])), st
 
 
 def test_state_lists_expenses_and_events(tmp_path):

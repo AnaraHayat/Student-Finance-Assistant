@@ -88,6 +88,7 @@ class AppState:
         self.store = store
         self.my_quotes = []
         self.audit_ok = True
+        self.audit_checked_at = 0.0
         # lock: short state operations. chat_lock: one chat turn at a time.
         # The slow AI call must never hold `lock`, or the whole page freezes.
         self.lock = threading.RLock()
@@ -114,8 +115,12 @@ def build_default_state() -> AppState:
     st = AppState(sandbox, toolbox, Agent(model, toolbox), rate, routes, mode,
                   store=store)
     st.my_quotes = quotes
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        restrict_file(env_file)
     ok, bad_line = verify_audit(ROOT / "logs" / "audit.jsonl")
     st.audit_ok = ok
+    st.audit_checked_at = time.monotonic()
     if not ok:
         log_security("audit_tamper", detail=f"audit log broken at line {bad_line}")
     return st
@@ -190,6 +195,7 @@ class LoginReq(BaseModel):
 def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
                local_only=None, access_token=None, session_ttl=None,
                mutation_rate_limit=120, mutation_rate_window=60,
+               login_rate_limit=10, login_rate_window=60,
                max_body_bytes=65536, allowed_hosts=None) -> FastAPI:
     try:
         from dotenv import load_dotenv
@@ -199,6 +205,7 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
 
     chat_limiter = RateLimiter(chat_rate_limit, chat_rate_window)
     mutation_limiter = RateLimiter(mutation_rate_limit, mutation_rate_window)
+    login_limiter = RateLimiter(login_rate_limit, login_rate_window)
 
     if local_only is None:
         local_only = os.getenv("LOCAL_ONLY", "").strip().lower() in (
@@ -213,13 +220,14 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             session_ttl = int(os.getenv("SESSION_TTL", "1800"))
         except ValueError:
             session_ttl = 1800
+    session_ttl = max(60, min(int(session_ttl), 86400))
     # Random per-process key: a restart invalidates all sessions.
     signer = SessionSigner(os.urandom(32), session_ttl)
 
     if allowed_hosts is None:
         env_hosts = [h.strip() for h in
                      os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
-        allowed_hosts = env_hosts or ["127.0.0.1", "localhost", "testserver"]
+        allowed_hosts = env_hosts or ["127.0.0.1", "localhost"]
 
     @asynccontextmanager
     async def lifespan(app):
@@ -229,6 +237,9 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
                 print("[security] ACCESS_TOKEN is not set: the API is "
                       "unauthenticated. Set it in .env before exposing this "
                       "app beyond this machine.", flush=True)
+            elif len(access_token) < 16:
+                print("[security] ACCESS_TOKEN is short. Use a random value "
+                      "of at least 32 characters.", flush=True)
         yield
 
     app = FastAPI(title="StudentFX", lifespan=lifespan)
@@ -237,8 +248,37 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
 
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
-    def err(status: int, detail: str) -> JSONResponse:
-        return JSONResponse({"detail": detail}, status_code=status)
+    def harden(response, *, secure: bool, path: str):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()")
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
+            "object-src 'none'; img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net "
+            "https://fonts.googleapis.com; "
+            "font-src 'self' data: https://cdn.jsdelivr.net "
+            "https://fonts.gstatic.com; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+            "https://cdn.tailwindcss.com https://cdn.jsdelivr.net; "
+            "connect-src 'self' https://cdn.tailwindcss.com; "
+            "form-action 'self'")
+        if secure:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains")
+        if path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def err(status: int, detail: str, *, secure: bool, path: str):
+        return harden(JSONResponse({"detail": detail}, status_code=status),
+                      secure=secure, path=path)
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
@@ -250,7 +290,8 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
 
         if local_only and not is_local_host(host):
             log_security("local_only_block", host, path)
-            return err(403, "Forbidden: this server only accepts local connections.")
+            return err(403, "Forbidden: this server only accepts local connections.",
+                       secure=secure, path=path)
 
         if is_api and request.method in ("POST", "PUT", "PATCH", "DELETE"):
             try:
@@ -259,41 +300,28 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
                 length = 0
             if length > max_body_bytes:
                 log_security("body_too_large", host, f"{path} {length}")
-                return err(413, "Request body too large.")
+                return err(413, "Request body too large.",
+                           secure=secure, path=path)
             if not mutation_limiter.allow(host):
                 log_security("rate_limit", host, path)
-                return err(429, "Too many requests. Please slow down.")
+                return err(429, "Too many requests. Please slow down.",
+                           secure=secure, path=path)
 
         session = None
         if auth_enabled and is_api and path != "/api/login":
             session = signer.decode(request.cookies.get(COOKIE_SESSION))
             if session is None:
                 log_security("auth_denied", host, path)
-                return err(401, "Please sign in.")
+                return err(401, "Please sign in.", secure=secure, path=path)
             if request.method in ("POST", "PUT", "PATCH", "DELETE"):
                 if not token_matches(request.headers.get("x-csrf-token", ""),
                                      session.get("csrf", "")):
                     log_security("csrf_denied", host, path)
-                    return err(403, "Invalid CSRF token.")
+                    return err(403, "Invalid CSRF token.",
+                               secure=secure, path=path)
 
         response = await call_next(request)
-
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = (
-            "geolocation=(), microphone=(), camera=()")
-        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
-            "object-src 'none'; img-src 'self' data:; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self'; connect-src 'self'; form-action 'self'")
-        if secure:
-            response.headers["Strict-Transport-Security"] = (
-                "max-age=63072000; includeSubDomains")
+        harden(response, secure=secure, path=path)
 
         # Sliding idle timeout: refresh the signed session on each request.
         if session is not None and path != "/api/logout":
@@ -311,9 +339,15 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
         if not auth_enabled:
             return {"ok": True, "auth": False}
         host = request.client.host if request.client else "unknown"
+        if not login_limiter.allow(host):
+            log_security("login_rate_limited", host)
+            raise HTTPException(
+                status_code=429,
+                detail="Too many sign-in attempts. Try again later.")
         if not token_matches(req.token, access_token):
             log_security("login_failed", host)
             raise HTTPException(status_code=401, detail="Invalid access token.")
+        log_security("login_ok", host)
         secure = (request.url.scheme == "https" or
                   request.headers.get("x-forwarded-proto", "").lower() == "https")
         payload = signer.issue()
@@ -345,6 +379,15 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
     def get_state():
         s = st()
         with s.lock:
+            now = time.monotonic()
+            if now - s.audit_checked_at > 30:
+                ok, bad_line = verify_audit(s.sandbox.log_path)
+                s.audit_ok = ok
+                s.audit_checked_at = now
+                if not ok:
+                    log_security(
+                        "audit_tamper",
+                        detail=f"audit log broken at line {bad_line}")
             snap = snapshot(s)
         snap["auth_required"] = auth_enabled
         return snap

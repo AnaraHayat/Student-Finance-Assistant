@@ -1,11 +1,13 @@
 from datetime import date
 from decimal import Decimal as D
 
+import json
+import pytest
 from fastapi.testclient import TestClient
 
 from agent.loop import Agent
 from agent.mock import MockModel
-from agent.tools import ToolBox
+from agent.tools import ToolBox, _d
 from audit import append as append_audit
 from audit import verify as verify_audit
 from core.mandate import Mandate
@@ -97,6 +99,13 @@ def test_logout_clears_the_session(tmp_path):
     assert client.get("/api/state").status_code == 401
 
 
+def test_login_is_rate_limited(tmp_path):
+    client = auth_client(tmp_path, login_rate_limit=2)
+    assert login(client, "wrong").status_code == 401
+    assert login(client, "wrong").status_code == 401
+    assert login(client, "wrong").status_code == 429
+
+
 def test_session_signature_and_expiry():
     signer = SessionSigner(b"k" * 32, ttl_seconds=60)
     payload = signer.issue()
@@ -120,6 +129,30 @@ def test_csp_and_hardening_headers(tmp_path):
     assert "frame-ancestors 'none'" in csp
     assert r.headers["Permissions-Policy"].startswith("geolocation=()")
     assert r.headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert r.headers["X-XSS-Protection"] == "0"
+
+
+def test_rejected_api_responses_are_hardened_and_uncached(tmp_path):
+    client = auth_client(tmp_path)
+    r = client.get("/api/state")
+    assert r.status_code == 401
+    assert "default-src 'self'" in r.headers["Content-Security-Policy"]
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_api_success_is_not_cached(tmp_path):
+    client = make_client(tmp_path)
+    r = client.get("/api/state")
+    assert r.status_code == 200
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_numeric_input_is_bounded():
+    assert _d("123.45") == D("123.45")
+    with pytest.raises(ValueError):
+        _d("1e100")
+    with pytest.raises(ValueError):
+        _d("x" * 60)
 
 
 def test_mutations_are_rate_limited(tmp_path):
@@ -183,3 +216,31 @@ def test_audit_chain_tolerates_legacy_lines(tmp_path):
     path.write_text('{"event": "old", "ts": "2026-01-01"}\n', encoding="utf-8")
     append_audit(path, {"event": "new"})
     assert verify_audit(path) == (True, None)
+
+
+def test_state_rechecks_audit_integrity(tmp_path):
+    sb = Sandbox(D("100000"), M, 1, tmp_path / "audit.jsonl")
+    tb = ToolBox(sb, [A], RATE)
+    agent = Agent(MockModel(), tb, today=date(2026, 10, 12))
+    st = AppState(sb, tb, agent, RATE, [A], "mock")
+    client = TestClient(create_app(st, access_token="", local_only=False,
+                                   allowed_hosts=["testserver"]))
+    r = client.post("/api/tool", json={
+        "name": "request_transfer",
+        "args": {"route_name": "A", "cny_to_deliver": "1000"},
+    })
+    assert r.status_code == 200
+    path = tmp_path / "audit.jsonl"
+    assert path.exists()
+
+    st.audit_checked_at = 0.0
+    assert client.get("/api/state").json()["audit_ok"] is True
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    entry = json.loads(lines[0])
+    entry["status"] = "executed"
+    lines[0] = json.dumps(entry)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    st.audit_checked_at = 0.0
+    assert client.get("/api/state").json()["audit_ok"] is False
