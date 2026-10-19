@@ -85,8 +85,8 @@ close.
 | 1 | FX **markup** is not published by banks, so it is set to `0` and every route is flagged `illustrative`. The ranking could understate a real markup. | Accepted (documented) | The README and UI state this loudly; the user is told to fix markup from their own quote. I did not invent numbers. |
 | 2 | Fee schedules have **min/max caps** (e.g. USD5–USD40) that the model does **not** apply; it uses a flat effective percentage. | Open | Documented in each route's `source` text. Applying caps would change the cost model and needs more test coverage; deferred. |
 | 3 | Authentication is **opt-in**. If `ACCESS_TOKEN` is unset the API is open. | Accepted (documented) | Keeps the demo/tests frictionless. Startup prints a loud warning; `.env.example` documents it. Real deployment must set it. |
-| 4 | The CSP allows `'unsafe-inline'` and `'unsafe-eval'` scripts plus Tailwind/jsDelivr CDNs, because the current UI is a static Tailwind mockup with inline handlers. | Accepted (trade-off) | Needed for that UI to render at all. A production build with bundled CSS/JS would let me drop `unsafe-inline`/`unsafe-eval`. |
-| 5 | The web UI is currently a **static mockup**: it does not call the API and shows hardcoded sample numbers, which conflicts with the "no invented numbers" rule. | Open | The functional system is the API + sandbox + tests. Rewiring the page to live data is the recommended next step. |
+| 4 | The CSP allows `'unsafe-inline'` and `'unsafe-eval'` scripts plus the Tailwind/jsDelivr CDNs, because the UI uses the Tailwind CDN and configures it with an inline script. | Accepted (trade-off) | Needed for that UI to render. A production build with bundled CSS/JS would let me drop `unsafe-inline`/`unsafe-eval`. |
+| 5 | The `web/` UI calls the live API (`/api/state`, `/api/tool`, `/api/chat`, confirm/reject, login) rather than showing mock data. | Mitigated | Front-end rewritten to render only values the server returns; a test asserts the page ships no invented rates or providers (`tests/test_server.py`). |
 | 6 | No **encryption at rest**; the SQLite DB and audit log are plaintext. | Accepted | Same-machine, fake-money data. Full-disk or container encryption is the deployment-level fix. |
 | 7 | The audit chain uses a **plain hash, not a keyed HMAC** with an externally held key. Someone with write access to the file could recompute the whole chain. | Accepted | It detects accidental corruption and casual tampering, and it is re-checked while running. True non-repudiation would need a secret key held outside the working directory. |
 | 8 | Rate limiters are **in-memory and per-process**. Restarting resets them; multiple workers each get their own budget. | Accepted | Fine for a local single-worker app. A shared store (Redis) would be needed to scale. |
@@ -104,7 +104,7 @@ close.
 
 ## 3. What is tested
 
-`tests/test_security.py` (part of the 148-test suite) verifies, among others:
+`tests/test_security.py` (part of the 150-test suite) verifies, among others:
 
 - unauthenticated `/api/state` → 401;
 - rejected responses still carry the security headers;
@@ -126,7 +126,7 @@ Run them with:
 ## 4. Recommendations before any real-money use
 
 1. Set a long random `ACCESS_TOKEN` and serve only over TLS.
-2. Replace the static mockup UI with a build wired to the live API.
+2. Keep the UI wired to the live API and consider a build step that bundles Tailwind so `unsafe-inline`/`unsafe-eval` can be dropped from the CSP.
 3. Model the fee min/max caps from the real schedules.
 4. Move the audit chain to a keyed HMAC with a key stored outside the repo.
 5. Move rate limiting and sessions to a shared store if running more than one

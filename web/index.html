@@ -6,7 +6,6 @@
     <title>Cross-Border Student Finance Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -34,27 +33,46 @@
             .tab-active {
                 @apply border-b-2 border-primary text-primary font-medium;
             }
+            .field {
+                @apply w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30;
+            }
+            .btn-primary {
+                @apply bg-primary text-white py-2 rounded-lg hover:bg-primary/90 transition disabled:opacity-50 disabled:cursor-not-allowed;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
-    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+    <!-- Sign-in overlay (only shown when the server requires a token) -->
+    <div id="login-overlay" class="hidden fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <form id="login-form" class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <h2 class="text-xl font-bold text-primary mb-1"><i class="fa fa-lock mr-2"></i>Sign in</h2>
+            <p class="text-sm text-neutral mb-4">Enter the access token set in your <code>.env</code> file.</p>
+            <input id="login-token" type="password" autocomplete="current-password" class="field mb-3" placeholder="Access token">
+            <p id="login-error" class="text-sm text-danger mb-3 min-h-[1.25rem]"></p>
+            <button id="login-submit" type="submit" class="w-full btn-primary">Unlock</button>
+        </form>
+    </div>
 
     <div class="max-w-7xl mx-auto px-4 py-6">
         <header class="mb-6">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <h1 class="text-[clamp(1.5rem,3vw,2.2rem)] font-bold text-primary"><i class="fa fa-exchange mr-2"></i>Cross-Border Student Finance Assistant</h1>
                 <div class="flex flex-wrap gap-2">
-                    <span class="chip bg-green-100 text-green-800"><i class="fa fa-money mr-1"></i> 1 CNY = 38.72 PKR <span class="text-xs ml-1 opacity-75" id="rate-date">(—)</span></span>
+                    <span class="chip bg-green-100 text-green-800"><i class="fa fa-money mr-1"></i> 1 CNY = <span id="rate-chip">—</span> PKR <span class="text-xs ml-1 opacity-75" id="rate-date">(—)</span></span>
                     <span class="chip bg-gray-100 text-gray-700"><i class="fa fa-clock-o mr-1"></i> <span id="live-clock">--:--:--</span></span>
-                    <span class="chip bg-blue-100 text-blue-800"><i class="fa fa-robot mr-1"></i> AI: Demo Mode</span>
-                    <span class="chip bg-yellow-100 text-yellow-800"><i class="fa fa-shield mr-1"></i> Limited Autonomy</span>
+                    <span class="chip bg-blue-100 text-blue-800"><i class="fa fa-robot mr-1"></i> <span id="mode-chip">AI: …</span></span>
+                    <span class="chip bg-yellow-100 text-yellow-800"><i class="fa fa-shield mr-1"></i> <span id="tier-chip">Tier …</span></span>
+                    <span class="chip bg-green-100 text-green-800" id="audit-chip"><i class="fa fa-check-circle mr-1"></i> Audit …</span>
+                    <button id="lock-btn" class="chip bg-red-100 text-red-800 hidden hover:bg-red-200 transition" title="Sign out"><i class="fa fa-sign-out mr-1"></i> Lock</button>
                 </div>
             </div>
 
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm flex items-center gap-3">
-                <i class="fa fa-info-circle text-xl"></i>
-                <p><strong>Sandbox Demo:</strong> All values are simulated for testing. This is not financial advice. Real exchange rates and fees may vary.</p>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm flex items-start gap-3">
+                <i class="fa fa-info-circle text-xl mt-0.5"></i>
+                <p id="banner-note"><strong>Sandbox:</strong> All values are simulated — no real money moves. Not financial advice.</p>
             </div>
         </header>
 
@@ -63,7 +81,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-neutral text-sm mb-1">PKR Wallet</p>
-                        <p class="text-3xl font-bold">Rs. 345,210</p>
+                        <p class="text-3xl font-bold" id="bal-pkr">—</p>
                     </div>
                     <span class="text-4xl opacity-20">Rs</span>
                 </div>
@@ -72,7 +90,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-neutral text-sm mb-1">CNY Wallet</p>
-                        <p class="text-3xl font-bold">¥ 12,480</p>
+                        <p class="text-3xl font-bold" id="bal-cny">—</p>
                     </div>
                     <span class="text-4xl opacity-20">¥</span>
                 </div>
@@ -83,194 +101,163 @@
             <div class="lg:col-span-1 space-y-5">
                 <div class="card">
                     <h3 class="font-semibold text-lg mb-3">Assistant Permission Level</h3>
-                    <div class="space-y-2">
+                    <div class="space-y-2" id="tier-group">
                         <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="permission" value="readonly" class="w-4 h-4">
+                            <input type="radio" name="tier" data-tier="0" class="w-4 h-4">
                             <span>Read-only (no actions allowed)</span>
                         </label>
                         <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                            <input type="radio" name="permission" value="draft" class="w-4 h-4">
+                            <input type="radio" name="tier" data-tier="1" class="w-4 h-4">
                             <span>Draft only (requires review)</span>
                         </label>
-                        <label class="flex items-center gap-2 p-2 rounded hover:bg-blue-50 cursor-pointer font-medium">
-                            <input type="radio" name="permission" value="limited" checked class="w-4 h-4">
-                            <span>Limited autonomy (confirm all transfers)</span>
+                        <label class="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                            <input type="radio" name="tier" data-tier="2" class="w-4 h-4">
+                            <span>Limited autonomy (confirm above your limit)</span>
                         </label>
                     </div>
+                    <p class="text-xs text-neutral mt-3" id="tier-help"></p>
                 </div>
 
                 <div class="card">
                     <h3 class="font-semibold text-lg mb-3">Safety Limits</h3>
-                    <div class="space-y-3">
+                    <form id="mandate-form" class="space-y-3">
                         <div>
                             <label class="text-sm text-neutral block mb-1">Max per transfer (CNY)</label>
-                            <input type="number" value="5000" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                            <input id="md-max" type="text" inputmode="decimal" class="field">
                         </div>
                         <div>
-                            <label class="text-sm text-neutral block mb-1">Auto-execute threshold (PKR)</label>
-                            <input type="number" value="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                            <label class="text-sm text-neutral block mb-1">Auto-execute threshold (CNY)</label>
+                            <input id="md-auto" type="text" inputmode="decimal" class="field">
                         </div>
                         <div>
-                            <label class="text-sm text-neutral block mb-1">Worst allowed exchange rate</label>
-                            <input type="number" step="0.01" value="39.50" class="w-full px-3 py-2 border border-gray-200 rounded-lg">
+                            <label class="text-sm text-neutral block mb-1">Worst allowed rate (PKR per CNY)</label>
+                            <input id="md-rate" type="text" inputmode="decimal" class="field">
                         </div>
-                        <button class="w-full bg-primary text-white py-2 rounded-lg hover:bg-primary/90 transition" onclick="showToast('Limits updated successfully', 'success')">Save Limits</button>
-                    </div>
+                        <button type="submit" class="w-full btn-primary">Save Limits</button>
+                    </form>
                 </div>
 
                 <div class="card">
-                    <h3 class="font-semibold text-lg mb-3 flex items-center gap-2">Waiting for your confirmation <span class="bg-danger text-white text-xs px-2 py-0.5 rounded-full">2</span></h3>
-                    <div class="space-y-3">
-                        <div class="p-3 border border-gray-100 rounded-lg">
-                            <p class="font-medium">Convert ¥2,500 to PKR</p>
-                            <p class="text-sm text-neutral mb-2">Rate: 38.68 • Total: Rs. 96,700</p>
-                            <div class="flex gap-2">
-                                <button class="flex-1 bg-success text-white py-1.5 rounded text-sm" onclick="showToast('Transfer confirmed', 'success')">Confirm</button>
-                                <button class="flex-1 bg-danger text-white py-1.5 rounded text-sm" onclick="showToast('Transfer rejected', 'warning')">Reject</button>
-                            </div>
-                        </div>
-                        <div class="p-3 border border-gray-100 rounded-lg">
-                            <p class="font-medium">Add monthly tuition payment of Rs. 145,000</p>
-                            <p class="text-sm text-neutral mb-2">Scheduled for Nov 5</p>
-                            <div class="flex gap-2">
-                                <button class="flex-1 bg-success text-white py-1.5 rounded text-sm" onclick="showToast('Scheduled payment confirmed', 'success')">Confirm</button>
-                                <button class="flex-1 bg-danger text-white py-1.5 rounded text-sm" onclick="showToast('Payment canceled', 'warning')">Reject</button>
-                            </div>
-                        </div>
+                    <h3 class="font-semibold text-lg mb-3 flex items-center gap-2">Waiting for your confirmation <span id="pending-count" class="bg-danger text-white text-xs px-2 py-0.5 rounded-full">0</span></h3>
+                    <div class="space-y-3" id="pending-list">
+                        <p class="text-neutral text-sm">Nothing is waiting for you.</p>
                     </div>
                 </div>
             </div>
 
             <div class="lg:col-span-2 space-y-5">
                 <div class="card p-0 overflow-hidden">
-                    <div class="flex border-b border-gray-200 overflow-x-auto" role="tablist">
-                        <button class="px-4 py-3 tab-active whitespace-nowrap" role="tab" aria-selected="true" onclick="switchTab('routes')">Compare Routes</button>
-                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" onclick="switchTab('spending')">Spending</button>
-                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" onclick="switchTab('forecast')">Forecast</button>
-                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" onclick="switchTab('quotes')">My Quotes</button>
-                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" onclick="switchTab('activity')">Activity Log</button>
+                    <div class="flex border-b border-gray-200 overflow-x-auto" role="tablist" id="tabs">
+                        <button class="px-4 py-3 tab-active whitespace-nowrap" role="tab" aria-selected="true" data-tab="routes">Compare Routes</button>
+                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" aria-selected="false" data-tab="spending">Spending</button>
+                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" aria-selected="false" data-tab="forecast">Forecast</button>
+                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" aria-selected="false" data-tab="quotes">My Quotes</button>
+                        <button class="px-4 py-3 text-neutral hover:text-gray-800 whitespace-nowrap" role="tab" aria-selected="false" data-tab="activity">Activity Log</button>
                     </div>
 
-                    <div class="p-5" id="tab-content">
+                    <div class="p-5">
+                        <!-- Compare routes -->
                         <div id="tab-routes" class="tab-panel">
-                            <div class="mb-4 flex items-center justify-between">
-                                <h3 class="font-semibold text-lg">Compare Transfer Routes (CNY → PKR)</h3>
-                                <span class="text-sm text-neutral">Mid-market rate: 38.72 PKR/CNY</span>
+                            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                                <h3 class="font-semibold text-lg">Compare Transfer Routes</h3>
+                                <span class="text-sm text-neutral" id="mid-rate-label">Mid-market rate: —</span>
                             </div>
-                            <div class="space-y-3">
-                                <div class="p-4 border border-green-200 bg-green-50 rounded-lg">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <h4 class="font-semibold">Wise</h4>
-                                        <span class="chip bg-green-600 text-white text-xs">Cheapest</span>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-3 text-sm mb-3">
-                                        <div><p class="text-neutral">Rate</p><p class="font-medium">38.51 PKR</p></div>
-                                        <div><p class="text-neutral">Fees</p><p class="font-medium">¥12.90</p></div>
-                                        <div><p class="text-neutral">Total hidden cost</p><p class="font-medium text-green-700">-0.54%</p></div>
-                                    </div>
-                                    <button class="w-full bg-primary text-white py-2 rounded hover:bg-primary/90 transition" onclick="showToast('Transfer request submitted for confirmation', 'info')">Request Transfer</button>
+                            <form id="compare-form" class="flex flex-wrap gap-2 mb-4">
+                                <input id="cmp-amount" type="text" inputmode="decimal" class="field flex-1 min-w-[8rem]" placeholder="CNY to deliver, e.g. 8000" required>
+                                <span id="cmp-type-wrap"><select id="cmp-type" class="field w-auto"></select></span>
+                                <button type="submit" class="btn-primary px-5">Compare</button>
+                            </form>
+                            <div id="compare-result" class="space-y-3"></div>
+                        </div>
+
+                        <!-- Spending -->
+                        <div id="tab-spending" class="tab-panel hidden space-y-5">
+                            <h3 class="font-semibold text-lg">Record an expense</h3>
+                            <form id="expense-form" class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                                <input id="exp-name" type="text" class="field sm:col-span-2" placeholder="What did you buy?" required>
+                                <input id="exp-amount" type="text" inputmode="decimal" class="field" placeholder="CNY" required>
+                                <input id="exp-cat" type="text" class="field" placeholder="Category" required>
+                                <input id="exp-date" type="date" class="field sm:col-span-3">
+                                <button type="submit" class="btn-primary">Add</button>
+                            </form>
+                            <div class="flex flex-wrap items-end gap-2">
+                                <div>
+                                    <label class="text-sm text-neutral block mb-1">Month summary</label>
+                                    <input id="sum-month" type="month" class="field">
                                 </div>
-                                <div class="p-4 border border-gray-200 rounded-lg">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <h4 class="font-semibold">Alipay / Bank Transfer</h4>
-                                    </div>
-                                    <div class="grid grid-cols-3 gap-3 text-sm mb-3">
-                                        <div><p class="text-neutral">Rate</p><p class="font-medium">38.12 PKR</p></div>
-                                        <div><p class="text-neutral">Fees</p><p class="font-medium">¥0</p></div>
-                                        <div><p class="text-neutral">Total hidden cost</p><p class="font-medium text-yellow-700">-1.55%</p></div>
-                                    </div>
-                                    <button class="w-full bg-gray-200 text-gray-800 py-2 rounded hover:bg-gray-300 transition" onclick="showToast('Transfer request submitted for confirmation', 'info')">Request Transfer</button>
-                                </div>
+                                <button id="summary-btn" type="button" class="btn-primary px-5">Show summary</button>
                             </div>
+                            <div id="summary-result" class="space-y-3"></div>
+                            <div id="expense-list"></div>
+                        </div>
+
+                        <!-- Forecast -->
+                        <div id="tab-forecast" class="tab-panel hidden space-y-5">
+                            <h3 class="font-semibold text-lg">Add a bill or income</h3>
+                            <form id="event-form" class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                                <input id="ev-name" type="text" class="field sm:col-span-2" placeholder="Name, e.g. rent" required>
+                                <input id="ev-amount" type="text" inputmode="decimal" class="field" placeholder="CNY" required>
+                                <select id="ev-kind" class="field">
+                                    <option value="obligation">Money out</option>
+                                    <option value="inflow">Money in</option>
+                                </select>
+                                <input id="ev-date" type="date" class="field">
+                                <button type="submit" class="btn-primary sm:col-span-5">Add event</button>
+                            </form>
+                            <h3 class="font-semibold text-lg">Forecast</h3>
+                            <form id="forecast-form" class="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                                <div><label class="text-sm text-neutral block mb-1">From</label><input id="fc-start" type="date" class="field"></div>
+                                <div><label class="text-sm text-neutral block mb-1">To</label><input id="fc-end" type="date" class="field"></div>
+                                <div><label class="text-sm text-neutral block mb-1">Buffer (CNY)</label><input id="fc-buffer" type="text" inputmode="decimal" class="field" placeholder="0"></div>
+                                <div><label class="text-sm text-neutral block mb-1">Transfer days</label><input id="fc-lead" type="number" min="0" value="3" class="field"></div>
+                                <button type="submit" class="btn-primary col-span-2 sm:col-span-4">Run forecast</button>
+                            </form>
+                            <div id="forecast-result" class="space-y-3"></div>
+                            <div id="event-list"></div>
+                        </div>
+
+                        <!-- My quotes -->
+                        <div id="tab-quotes" class="tab-panel hidden space-y-5">
+                            <h3 class="font-semibold text-lg">Check a quote you were given</h3>
+                            <form id="quote-form" class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                                <input id="q-provider" type="text" class="field" placeholder="Provider" required>
+                                <input id="q-pkr" type="text" inputmode="decimal" class="field" placeholder="Total PKR paid" required>
+                                <input id="q-cny" type="text" inputmode="decimal" class="field" placeholder="CNY received" required>
+                                <button type="submit" class="btn-primary">Analyse</button>
+                            </form>
+                            <div id="quotes-table"></div>
+                        </div>
+
+                        <!-- Activity log -->
+                        <div id="tab-activity" class="tab-panel hidden space-y-3">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-semibold text-lg">Audit log (hash-chained)</h3>
+                                <button id="log-refresh" type="button" class="chip bg-gray-100 hover:bg-gray-200 transition"><i class="fa fa-refresh mr-1"></i>Refresh</button>
+                            </div>
+                            <div id="log-table"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <h3 class="font-semibold text-lg mb-3">Ask your finance assistant</h3>
-                    <div class="flex flex-wrap gap-2 mb-4">
-                        <button class="chip bg-gray-100 hover:bg-gray-200 transition" onclick="showToast('Calculating cheapest route for tuition payment', 'info')">What's the cheapest way to pay tuition?</button>
-                        <button class="chip bg-gray-100 hover:bg-gray-200 transition" onclick="showToast('Forecasting end of semester budget', 'info')">Will I run out of money this semester?</button>
-                    </div>
-                    <div class="flex gap-2">
-                        <input type="text" placeholder="Ask anything in plain language..." class="flex-1 px-4 py-3 border border-gray-200 rounded-lg">
-                        <button class="bg-primary text-white px-5 rounded-lg hover:bg-primary/90 transition"><i class="fa fa-paper-plane"></i></button>
-                    </div>
-                    <div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-neutral">
-                        <p class="font-medium text-gray-800 mb-1">💡 Response trace:</p>
-                        <p>• Fetched live rate from State Bank of Pakistan (<span id="trace-time">—</span>)</p>
-                        <p>• Compared 6 transfer providers, sorted by total cost</p>
-                        <p>• Applied user limits: max rate 39.50, max transfer ¥5000</p>
-                    </div>
+                    <div class="flex flex-wrap gap-2 mb-4" id="starters"></div>
+                    <div id="chat-log" class="space-y-3 max-h-96 overflow-y-auto mb-4"></div>
+                    <form id="chat-form" class="flex gap-2">
+                        <input id="chat-input" type="text" placeholder="Ask anything in plain language..." class="field flex-1">
+                        <button id="chat-send" type="submit" class="bg-primary text-white px-5 rounded-lg hover:bg-primary/90 transition"><i class="fa fa-paper-plane"></i></button>
+                    </form>
                 </div>
 
                 <div class="card bg-gray-50">
-                    <h3 class="font-semibold text-lg mb-3">Data & Transparency</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                        <div><p class="text-neutral mb-1">Rate source</p><p class="font-medium">State Bank of Pakistan mid-market</p></div>
-                        <div><p class="text-neutral mb-1">Last updated</p><p class="font-medium" id="last-updated">—</p></div>
-                        <div><p class="text-neutral mb-1">Illustrative fee estimates</p><p class="font-medium">3 of 5 routes use real-time provider data</p></div>
-                    </div>
+                    <h3 class="font-semibold text-lg mb-3">Data &amp; Transparency</h3>
+                    <dl id="trust-info" class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm"></dl>
+                    <p id="trust-note" class="text-sm text-amber-700 mt-3"></p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        function pad2(n) { return String(n).padStart(2, "0"); }
-
-        function tickClock() {
-            const now = new Date();
-            const dateStr = now.toLocaleDateString(undefined, {
-                day: "2-digit", month: "short", year: "numeric"
-            });
-            const timeStr = pad2(now.getHours()) + ":" + pad2(now.getMinutes()) +
-                ":" + pad2(now.getSeconds());
-            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-            const clock = document.getElementById("live-clock");
-            if (clock) clock.textContent = dateStr + "  " + timeStr + (tz ? "  " + tz : "");
-        }
-
-        function setLoadTimes() {
-            const now = new Date();
-            const short = now.toLocaleDateString(undefined, {
-                day: "numeric", month: "short"
-            });
-            const full = now.toLocaleString(undefined, {
-                year: "numeric", month: "short", day: "numeric",
-                hour: "2-digit", minute: "2-digit", second: "2-digit",
-                timeZoneName: "short"
-            });
-            const rateDate = document.getElementById("rate-date");
-            if (rateDate) rateDate.textContent = "(" + short + ")";
-            const lastUpdated = document.getElementById("last-updated");
-            if (lastUpdated) lastUpdated.textContent = full;
-            const traceTime = document.getElementById("trace-time");
-            if (traceTime) traceTime.textContent = full;
-        }
-
-        tickClock();
-        setLoadTimes();
-        setInterval(tickClock, 1000);
-
-        function switchTab(tabName) {
-            document.querySelectorAll('[role="tab"]').forEach(tab => {
-                tab.classList.remove('tab-active');
-                tab.classList.add('text-neutral', 'hover:text-gray-800');
-            });
-            event.target.classList.add('tab-active');
-            event.target.classList.remove('text-neutral', 'hover:text-gray-800');
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const colors = { success: 'bg-green-600', warning: 'bg-yellow-600', danger: 'bg-red-600', info: 'bg-blue-600' };
-            toast.className = `${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-    </script>
+    <script src="/static/app.js"></script>
 </body>
 </html>

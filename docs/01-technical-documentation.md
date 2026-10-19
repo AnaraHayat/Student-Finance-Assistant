@@ -27,7 +27,7 @@ This document covers the three required areas:
 | Audit | `audit.py` | Append-only, hash-chained JSON-lines log. `append` writes an entry; `verify` re-checks the whole chain. |
 | Security | `security.py` | Signed session cookies, CSRF tokens, constant-time token compare, security-event log, file-permission tightening. |
 | Web / API | `server.py` | FastAPI app: static UI, JSON API, auth, CSRF, rate limits, security headers, audit re-verification. |
-| UI | `web/index.html` | Single-page interface. |
+| UI | `web/index.html`, `web/app.js` | Single-page interface that calls the JSON API (state, compare, transfers, spending, forecast, quotes, audit log, chat, login). No sample data: every figure comes from the server. |
 
 ### 1.2 How they connect
 

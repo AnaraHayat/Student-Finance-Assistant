@@ -20,7 +20,8 @@ hash-chained audit log).
 | `evidence/audit-log.jsonl` | The four tamper-evident audit entries produced by the session. |
 | `evidence/audit-verification.txt` | The result of re-verifying the hash chain: `OK (chain intact)`. |
 | `evidence/security-events.txt` | Security log lines produced during the session (denied auth, successful login). |
-| `evidence/tests.txt` | The automated test suite: **148 passed**. |
+| `evidence/tests.txt` | The automated test suite: **150 passed**. |
+| `evidence/dashboard.png` | The live web UI rendering real server data (rate, wallets, tier, route comparison, audit status). |
 | `evidence/environment.txt` | Interpreter, platform and time of the run. |
 
 `docs/evidence/` is committed, so it is visible directly on GitHub. It is also
@@ -133,22 +134,23 @@ the submission rather than committed here.
 
 **What the recording shows (≈3 minutes):**
 
-1. `pip install` and `pytest` — **148 passed**.
+1. `pip install` and `pytest` — **150 passed**.
 2. Start the server:
    `python -m uvicorn server:app --host 127.0.0.1 --port 8000`
    and note the startup line and (if `ACCESS_TOKEN` is unset) the security
    warning.
-3. Open `http://127.0.0.1:8000`, sign in with the access token.
-4. Change the tier to 1, ask the assistant to send 3000 CNY, and show the
-   request landing as **pending**.
-5. Press **Confirm** and show the balances update; create another and
-   **Reject** it to show nothing moves.
-6. Ask it to compare routes for 8000 CNY and point out the hidden-cost column.
-7. Add an expense and show the spending summary; add a rent event and show the
-   forecast and "transfer by" date.
-8. Show the audit log growing and the live clock.
+3. Open `http://127.0.0.1:8000`, sign in with the access token (wrong token first to show it is rejected).
+4. Change the tier to 1 (draft only); in **Compare Routes**, compare 8000 CNY and
+   show the route cards, the hidden-cost figures and each fee source. Request a
+   transfer and show it landing in **Waiting for your confirmation**.
+5. Press **Confirm** and show the wallets update; create another and **Reject**
+   it to show nothing moves.
+6. Add an expense and show the monthly summary; add a rent event and run the
+   forecast to show the "transfer by" date.
+7. Ask the assistant (in plain language) for the cheapest ways to send money —
+   it answers with tool-sourced figures, and the reply shows the real tool trace.
+8. Show the audit log growing, the audit "verified" chip, and the live clock.
 
-> Note: the current `web/index.html` is a static design mockup. Steps 4–7 above
-> exercise the real API through the tool panel / API rather than the mockup's
-> buttons. Rewiring the mockup to the live API is listed as the top
-> recommendation in the security self-assessment.
+The UI is fully wired to the API: every number and every button in the recording
+comes from the running server, not from the page. `docs/evidence/dashboard.png`
+is a still of the same screen.

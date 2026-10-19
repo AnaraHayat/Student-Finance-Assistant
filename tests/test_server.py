@@ -76,6 +76,26 @@ def test_index_served(tmp_path):
     assert "<html" in r.text.lower()
 
 
+def test_index_loads_the_live_script_and_has_no_mock_data(tmp_path):
+    client, _ = make_client(tmp_path)
+    text = client.get("/").text
+    # The page must call the API, not ship invented numbers.
+    assert "/static/app.js" in text
+    assert "38.72" not in text
+    assert "State Bank of Pakistan" not in text
+    assert "Wise" not in text
+    assert "Alipay" not in text
+
+
+def test_static_app_js_is_served_and_uses_the_api(tmp_path):
+    client, _ = make_client(tmp_path)
+    r = client.get("/static/app.js")
+    assert r.status_code == 200
+    assert "/api/state" in r.text
+    assert "/api/chat" in r.text
+    assert "X-CSRF-Token" in r.text
+
+
 def test_state_snapshot(tmp_path):
     client, st = make_client(tmp_path)
     j = client.get("/api/state").json()

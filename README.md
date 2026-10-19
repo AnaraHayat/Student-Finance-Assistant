@@ -31,8 +31,8 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 | `agent/` | The AI agent (Gemini) and its 8 tools, plus a mock model for demo mode. |
 | `store.py` | SQLite persistence for wallets, pending transfers, expenses, events and quotes. |
 | `server.py` | FastAPI backend. |
-| `web/` | The web page (HTML + JS). |
-| `tests/` | 148 automated tests. |
+| `web/` | The live web UI. `index.html` plus `app.js`, which calls the API. |
+| `tests/` | 150 automated tests. |
 
 ### Permission tiers
 
@@ -98,7 +98,7 @@ Open **http://127.0.0.1:8000**.
 8. **Do a first run to fetch the rate** (`data/rate_cache.json` will be created):
    `uvicorn server:app --host 127.0.0.1 --port 8000`
 9. **Verify**: open http://127.0.0.1:8000, sign in with the access token, and confirm the header shows the live rate and the audit chain is "verified".
-10. **Run the tests**: `pytest` (expect `148 passed`).
+10. **Run the tests**: `pytest` (expect `150 passed`).
 11. **For a real deployment, add TLS** — either terminate it in a reverse proxy (Caddy/nginx) or run:
     `uvicorn server:app --host 0.0.0.0 --port 8443 --ssl-keyfile key.pem --ssl-certfile cert.pem`
     With TLS, cookies are marked `Secure` and HSTS is sent. Do not expose the app to the internet without TLS *and* a real `ACCESS_TOKEN`.
@@ -129,8 +129,8 @@ This is a sandbox, but the finance controls are enforced in code, not by the AI.
 - **Idle timeout.** `SESSION_TTL` (default 1800 seconds, clamped to 60–86400) signs you out after inactivity, and every session has an 8-hour absolute cap. **Lock** in the header ends the session immediately.
 - **Rate limits.** Chat has its own limit, every state-changing API call is limited per client, and sign-in is throttled separately. Server-side soft caps like these are best effort; they are not a substitute for a real access token.
 - **Input caps.** Request bodies, tool arguments, tool names, free-text fields and numeric values (length and magnitude) are bounded, so a crafted value cannot tie up the server.
-- **Headers and hosts.** The app sends a Content-Security-Policy plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-XSS-Protection: 0` and cross-origin isolation headers. The UI loads Tailwind, Font Awesome and Chart.js from CDNs, so the policy allows those specific origins and inline script/style; everything else is still locked down. Headers are attached to error responses too, and API responses are `Cache-Control: no-store`. Only the hosts in `ALLOWED_HOSTS` are answered (default `127.0.0.1,localhost`).
-- **Tamper-evident audit log.** Every audit entry carries a SHA-256 hash of the previous entry. The chain is checked at startup and re-checked while the app runs; the result appears under *Data & trust*, and an edit to the file flips it to "NOT verified".
+- **Headers and hosts.** The app sends a Content-Security-Policy plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-XSS-Protection: 0` and cross-origin isolation headers. The UI loads Tailwind and Font Awesome from CDNs and configures Tailwind with an inline script, so the policy allows those specific origins and inline script/style; everything else is still locked down. Headers are attached to error responses too, and API responses are `Cache-Control: no-store`. Only the hosts in `ALLOWED_HOSTS` are answered (default `127.0.0.1,localhost`).
+- **Tamper-evident audit log.** Every audit entry carries a SHA-256 hash of the previous entry. The chain is checked at startup and re-checked while the app runs; the result appears under *Data & Transparency* (and as a chip in the header), and an edit to the file flips it to "NOT verified".
 - **Safer failures.** Unexpected errors no longer expose exception types to the browser, and security events (failed logins, bad CSRF tokens, rate-limit hits) go to `logs/security.jsonl`.
 - **Dependency auditing.** CI runs `pip-audit` against `requirements.txt` on every push.
 - **Persistence.** SQLite queries are parameterized, money is stored as text and kept in `Decimal`, `.env` and the database are git-ignored, and file permissions are tightened to owner-only on POSIX.
@@ -181,7 +181,7 @@ Edit `data/fees.json`. One entry per route:
 
 ## Test cases
 
-The suite has **148 tests**. Run it with:
+The suite has **150 tests**. Run it with:
 
 ```bash
 pytest -q
