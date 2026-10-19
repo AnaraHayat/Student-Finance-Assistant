@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
 
 BLOCKED = "blocked"
 NEEDS_CONFIRMATION = "needs_confirmation"
@@ -12,7 +11,7 @@ class Mandate:
     max_transfer_cny: Decimal        # hard cap per transfer, in CNY delivered
     auto_execute_limit_cny: Decimal  # tier 2 may act alone up to this
     max_pkr_per_cny: Decimal         # refuse routes offering a worse rate
-    allowed_routes: Optional[frozenset] = None  # None = any route
+    allowed_routes: frozenset | None = None  # None = any route
 
     def __post_init__(self):
         if self.max_transfer_cny <= 0:

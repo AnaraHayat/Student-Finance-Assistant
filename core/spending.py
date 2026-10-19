@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from decimal import ROUND_HALF_UP, Decimal
 
 _2DP = Decimal("0.01")
 _4DP = Decimal("0.0001")
@@ -47,7 +46,7 @@ class Summary:
 
 
 def summarize(expenses, year: int, month: int, mid_rate: Decimal,
-              effective_rate: Optional[Decimal] = None) -> Summary:
+              effective_rate: Decimal | None = None) -> Summary:
     if not 1 <= month <= 12:
         raise ValueError("month must be 1 to 12")
     if mid_rate <= 0:

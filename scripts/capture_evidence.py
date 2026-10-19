@@ -102,7 +102,7 @@ def main() -> int:
            client.post("/api/login", json={"token": TOKEN}))
     record("GET /api/state (authenticated)",
            client.get("/api/state"))
-    record(f"POST /api/tool compare_routes 8000 CNY",
+    record("POST /api/tool compare_routes 8000 CNY",
            post("/api/tool", {"name": "compare_routes",
                               "args": {"cny_to_deliver": "8000"}}))
     record(f"POST /api/tool request_transfer {route} 3000 CNY (tier 1 -> pending)",

@@ -1,0 +1,5 @@
+# Development-only tools. Install with:
+#   pip install -r requirements-dev.txt
+# Runtime dependencies stay in requirements.txt.
+-r requirements.txt
+ruff==0.17.1

@@ -1,5 +1,7 @@
 from decimal import Decimal as D
+
 import pytest
+
 from core.money import Route, quote
 
 ROUTE = Route("PLACEHOLDER_A", D("0.02"), D("500"), D("0.01"), D("0"),

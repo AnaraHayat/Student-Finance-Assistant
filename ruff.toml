@@ -1,0 +1,18 @@
+# Ruff configuration. Install the dev tools with:
+#   pip install -r requirements-dev.txt
+# then run:
+#   ruff check .
+target-version = "py310"
+line-length = 79
+
+[lint]
+select = ["E4", "E7", "E9", "F", "W", "I", "UP", "B", "SIM", "C4"]
+ignore = [
+    # datetime.UTC only exists on Python 3.11+; this project supports 3.10.
+    "UP017",
+]
+
+[lint.per-file-ignores]
+# Test doubles implement interfaces with fixed signatures, and test data
+# sometimes needs to stay readable rather than short.
+"tests/*" = ["E501"]

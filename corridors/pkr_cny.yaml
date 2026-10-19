@@ -1,9 +1,0 @@
-id: pkr_cny
-from_currency: PKR
-to_currency: CNY
-rate_source:
-  name: open.er-api.com
-  endpoint: https://open.er-api.com/v6/latest/CNY
-  quoted_as: PKR per 1 CNY
-  refresh: about daily
-  note: mid-market reference rate, not a rate any route offers

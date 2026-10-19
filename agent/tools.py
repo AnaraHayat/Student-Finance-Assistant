@@ -2,7 +2,7 @@ import threading
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from core.forecast import INFLOW, OBLIGATION, Event, forecast
+from core.forecast import Event, forecast
 from core.money import quote
 from core.routes import compare
 from core.spending import Expense, summarize
@@ -14,8 +14,8 @@ def _d(x) -> Decimal:
         raise ValueError("number is too long")
     try:
         v = Decimal(text)
-    except InvalidOperation:
-        raise ValueError(f"not a number: {x!r}")
+    except InvalidOperation as e:
+        raise ValueError(f"not a number: {x!r}") from e
     if not v.is_finite():
         raise ValueError(f"not a finite number: {x!r}")
     # Bound the exponent so a huge value cannot make arithmetic slow.

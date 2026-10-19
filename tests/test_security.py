@@ -1,7 +1,7 @@
+import json
 from datetime import date
 from decimal import Decimal as D
 
-import json
 import pytest
 from fastapi.testclient import TestClient
 

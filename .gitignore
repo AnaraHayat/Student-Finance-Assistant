@@ -1,5 +1,6 @@
 .env
 __pycache__/
+.ruff_cache/
 .venv/
 logs/*.jsonl
 data/rate_cache.json

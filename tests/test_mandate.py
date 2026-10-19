@@ -2,8 +2,13 @@ from decimal import Decimal as D
 
 import pytest
 
-from core.mandate import (ALLOW_EXECUTE, BLOCKED, NEEDS_CONFIRMATION,
-                          Mandate, evaluate)
+from core.mandate import (
+    ALLOW_EXECUTE,
+    BLOCKED,
+    NEEDS_CONFIRMATION,
+    Mandate,
+    evaluate,
+)
 
 M = Mandate(max_transfer_cny=D("10000"), auto_execute_limit_cny=D("2000"),
             max_pkr_per_cny=D("43"), allowed_routes=frozenset({"A", "B"}))

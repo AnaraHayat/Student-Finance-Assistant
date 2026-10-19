@@ -32,6 +32,7 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 | `store.py` | SQLite persistence for wallets, pending transfers, expenses, events and quotes. |
 | `server.py` | FastAPI backend. |
 | `web/` | The live web UI. `index.html` plus `app.js`, which calls the API. |
+| `scripts/` | `capture_evidence.py` (regenerates `docs/evidence/`) and the manual `check_*.py` probes. |
 | `tests/` | 150 automated tests. |
 
 ### Permission tiers
@@ -204,7 +205,7 @@ For a runnable, end-to-end demonstration (not a unit test), see
 `scripts/capture_evidence.py` and the transcript it produced in
 [docs/06-execution-evidence.md](docs/06-execution-evidence.md).
 
-The `check_*.py` files in the root are manual scripts for trying the rate API, the Gemini connection, speed, and the agent. Most need a valid API key.
+The `scripts/check_*.py` files are manual probes for trying the rate API, the Gemini connection, speed, and the agent. Run them from the repository root (they read `data/` and write to `logs/`). Most need a valid API key.
 
 ## Known limits
 

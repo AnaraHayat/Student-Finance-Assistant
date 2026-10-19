@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Optional
+from decimal import ROUND_HALF_UP, Decimal
 
 _2DP = Decimal("0.01")
 _4DP = Decimal("0.0001")
@@ -20,7 +19,7 @@ class Route:
     source: str                 # URL of the page the numbers came from
     as_of: str                  # date the numbers were checked
     route_type: str = "unspecified"   # e.g. bank_transfer, remittance_service
-    typical_days: Optional[int] = None
+    typical_days: int | None = None
     supports_tuition: bool = False
 
 

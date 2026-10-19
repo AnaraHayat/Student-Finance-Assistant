@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Optional
 
 OBLIGATION = "obligation"
 INFLOW = "inflow"
@@ -26,9 +25,9 @@ class Forecast:
     daily: tuple                      # ((date, end-of-day balance), ...)
     min_balance: Decimal
     min_balance_date: date
-    first_shortfall_date: Optional[date]
+    first_shortfall_date: date | None
     topup_needed_cny: Decimal
-    transfer_by: Optional[date]
+    transfer_by: date | None
     is_late: bool
 
 

@@ -25,8 +25,14 @@ from core.rates import get_rate
 from core.routes import load_routes
 from core.user_quote import analyze_quote
 from sandbox.ledger import Sandbox
-from security import (COOKIE_CSRF, COOKIE_SESSION, SessionSigner, log_security,
-                      restrict_file, token_matches)
+from security import (
+    COOKIE_CSRF,
+    COOKIE_SESSION,
+    SessionSigner,
+    log_security,
+    restrict_file,
+    token_matches,
+)
 from store import Store
 
 ROOT = Path(__file__).resolve().parent
@@ -313,12 +319,13 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             if session is None:
                 log_security("auth_denied", host, path)
                 return err(401, "Please sign in.", secure=secure, path=path)
-            if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-                if not token_matches(request.headers.get("x-csrf-token", ""),
-                                     session.get("csrf", "")):
-                    log_security("csrf_denied", host, path)
-                    return err(403, "Invalid CSRF token.",
-                               secure=secure, path=path)
+            if (request.method in ("POST", "PUT", "PATCH", "DELETE")
+                    and not token_matches(
+                        request.headers.get("x-csrf-token", ""),
+                        session.get("csrf", ""))):
+                log_security("csrf_denied", host, path)
+                return err(403, "Invalid CSRF token.",
+                           secure=secure, path=path)
 
         response = await call_next(request)
         harden(response, secure=secure, path=path)
@@ -420,14 +427,14 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             raise HTTPException(
                 status_code=502,
                 detail=f"The AI model is unavailable: {e}."
-                       + completed_actions_note(e))
+                       + completed_actions_note(e)) from e
         except Exception as e:
             del s.agent.contents[mark:]
             traceback.print_exc()
             raise HTTPException(
                 status_code=500,
                 detail="Unexpected server error. See the terminal window for "
-                       "details." + completed_actions_note(e))
+                       "details." + completed_actions_note(e)) from e
         finally:
             s.chat_lock.release()
         seconds = round(time.time() - started, 1)
@@ -453,7 +460,7 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             try:
                 return s.sandbox.confirm(tid)
             except ValueError as e:
-                raise HTTPException(status_code=404, detail=str(e))
+                raise HTTPException(status_code=404, detail=str(e)) from e
 
     @app.post("/api/reject/{tid}")
     def reject(tid: str):
@@ -462,7 +469,7 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             try:
                 return s.sandbox.reject(tid)
             except ValueError as e:
-                raise HTTPException(status_code=404, detail=str(e))
+                raise HTTPException(status_code=404, detail=str(e)) from e
 
     @app.post("/api/tier")
     def set_tier(req: TierReq):
@@ -483,7 +490,7 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
                               _d(req.max_pkr_per_cny),
                               s.sandbox.mandate.allowed_routes)
             except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
+                raise HTTPException(status_code=400, detail=str(e)) from e
             s.sandbox.mandate = new
             path = s.sandbox.log_path
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -514,7 +521,7 @@ def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
             uq = analyze_quote(req.provider, _d(req.pkr_paid),
                                _d(req.cny_received), s.rate.pkr_per_cny)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         entry = {
             "provider": uq.provider,
             "on": date.today().isoformat(),

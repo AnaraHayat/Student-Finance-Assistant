@@ -1,9 +1,8 @@
+import threading
 from datetime import date
 from decimal import Decimal as D
 
 from fastapi.testclient import TestClient
-
-import threading
 
 from agent.llm import LLMError
 from agent.loop import Agent
