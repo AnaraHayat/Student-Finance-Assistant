@@ -25,6 +25,9 @@ def make_client(tmp_path, **kw):
     tb = ToolBox(sb, [A], RATE)
     agent = Agent(MockModel(), tb, today=date(2026, 10, 12))
     st = AppState(sb, tb, agent, RATE, [A], "mock")
+    kw.setdefault("access_token", "")
+    kw.setdefault("local_only", False)
+    kw.setdefault("allowed_hosts", ["testserver"])
     return TestClient(create_app(st, **kw))
 
 

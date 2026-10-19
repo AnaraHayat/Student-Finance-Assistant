@@ -9,19 +9,24 @@ from decimal import Decimal as D
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agent.llm import GeminiModel, LLMError
 from agent.loop import Agent
 from agent.mock import MockModel
 from agent.tools import ToolBox, _d
+from audit import append as append_audit
+from audit import verify as verify_audit
 from core.mandate import Mandate
 from core.rates import get_rate
 from core.routes import load_routes
 from core.user_quote import analyze_quote
 from sandbox.ledger import Sandbox
+from security import (COOKIE_CSRF, COOKIE_SESSION, SessionSigner, log_security,
+                      restrict_file, token_matches)
 from store import Store
 
 ROOT = Path(__file__).resolve().parent
@@ -82,6 +87,7 @@ class AppState:
         self.llm_mode = llm_mode
         self.store = store
         self.my_quotes = []
+        self.audit_ok = True
         # lock: short state operations. chat_lock: one chat turn at a time.
         # The slow AI call must never hold `lock`, or the whole page freezes.
         self.lock = threading.RLock()
@@ -94,6 +100,7 @@ def build_default_state() -> AppState:
     routes = load_routes(ROOT / "data" / "fees.json")
     mandate = Mandate(D("50000"), D("5000"), D("60"))
     store = Store(ROOT / "data" / "studentfx.db")
+    restrict_file(ROOT / "data" / "studentfx.db")
     sandbox = Sandbox(D("2000000"), mandate, 1,
                       ROOT / "logs" / "audit.jsonl", store=store)
     toolbox = ToolBox(sandbox, routes, rate, store=store)
@@ -107,6 +114,10 @@ def build_default_state() -> AppState:
     st = AppState(sandbox, toolbox, Agent(model, toolbox), rate, routes, mode,
                   store=store)
     st.my_quotes = quotes
+    ok, bad_line = verify_audit(ROOT / "logs" / "audit.jsonl")
+    st.audit_ok = ok
+    if not ok:
+        log_security("audit_tamper", detail=f"audit log broken at line {bad_line}")
     return st
 
 
@@ -115,6 +126,7 @@ def snapshot(s: AppState) -> dict:
     m = sb.mandate
     return {
         "llm_mode": s.llm_mode,
+        "audit_ok": s.audit_ok,
         "today": date.today().isoformat(),
         "rate": {"pkr_per_cny": str(s.rate.pkr_per_cny),
                  "as_of": s.rate.as_of,
@@ -171,39 +183,155 @@ class MandateReq(BaseModel):
     max_pkr_per_cny: str | int | float
 
 
-def create_app(state=None, chat_rate_limit=30,
-               chat_rate_window=60, local_only=None) -> FastAPI:
-    limiter = RateLimiter(chat_rate_limit, chat_rate_window)
+class LoginReq(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
+def create_app(state=None, chat_rate_limit=30, chat_rate_window=60,
+               local_only=None, access_token=None, session_ttl=None,
+               mutation_rate_limit=120, mutation_rate_window=60,
+               max_body_bytes=65536, allowed_hosts=None) -> FastAPI:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(ROOT / ".env")
+    except Exception:
+        pass
+
+    chat_limiter = RateLimiter(chat_rate_limit, chat_rate_window)
+    mutation_limiter = RateLimiter(mutation_rate_limit, mutation_rate_window)
+
     if local_only is None:
         local_only = os.getenv("LOCAL_ONLY", "").strip().lower() in (
             "1", "true", "yes")
+
+    if access_token is None:
+        access_token = os.getenv("ACCESS_TOKEN", "").strip()
+    auth_enabled = bool(access_token)
+
+    if session_ttl is None:
+        try:
+            session_ttl = int(os.getenv("SESSION_TTL", "1800"))
+        except ValueError:
+            session_ttl = 1800
+    # Random per-process key: a restart invalidates all sessions.
+    signer = SessionSigner(os.urandom(32), session_ttl)
+
+    if allowed_hosts is None:
+        env_hosts = [h.strip() for h in
+                     os.getenv("ALLOWED_HOSTS", "").split(",") if h.strip()]
+        allowed_hosts = env_hosts or ["127.0.0.1", "localhost", "testserver"]
 
     @asynccontextmanager
     async def lifespan(app):
         if state is None:
             app.state.st = build_default_state()
+            if not auth_enabled:
+                print("[security] ACCESS_TOKEN is not set: the API is "
+                      "unauthenticated. Set it in .env before exposing this "
+                      "app beyond this machine.", flush=True)
         yield
 
     app = FastAPI(title="StudentFX", lifespan=lifespan)
     if state is not None:
         app.state.st = state
 
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+    def err(status: int, detail: str) -> JSONResponse:
+        return JSONResponse({"detail": detail}, status_code=status)
+
     @app.middleware("http")
-    async def security_headers(request, call_next):
-        if local_only:
-            host = request.client.host if request.client else ""
-            if not is_local_host(host):
-                return Response(
-                    "Forbidden: this server only accepts local connections.",
-                    status_code=403)
+    async def guard(request: Request, call_next):
+        path = request.url.path
+        host = request.client.host if request.client else "unknown"
+        secure = (request.url.scheme == "https" or
+                  request.headers.get("x-forwarded-proto", "").lower() == "https")
+        is_api = path.startswith("/api/")
+
+        if local_only and not is_local_host(host):
+            log_security("local_only_block", host, path)
+            return err(403, "Forbidden: this server only accepts local connections.")
+
+        if is_api and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            try:
+                length = int(request.headers.get("content-length") or 0)
+            except ValueError:
+                length = 0
+            if length > max_body_bytes:
+                log_security("body_too_large", host, f"{path} {length}")
+                return err(413, "Request body too large.")
+            if not mutation_limiter.allow(host):
+                log_security("rate_limit", host, path)
+                return err(429, "Too many requests. Please slow down.")
+
+        session = None
+        if auth_enabled and is_api and path != "/api/login":
+            session = signer.decode(request.cookies.get(COOKIE_SESSION))
+            if session is None:
+                log_security("auth_denied", host, path)
+                return err(401, "Please sign in.")
+            if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+                if not token_matches(request.headers.get("x-csrf-token", ""),
+                                     session.get("csrf", "")):
+                    log_security("csrf_denied", host, path)
+                    return err(403, "Invalid CSRF token.")
+
         response = await call_next(request)
+
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()")
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; "
+            "object-src 'none'; img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "script-src 'self'; connect-src 'self'; form-action 'self'")
+        if secure:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains")
+
+        # Sliding idle timeout: refresh the signed session on each request.
+        if session is not None and path != "/api/logout":
+            response.set_cookie(
+                COOKIE_SESSION, signer.encode(signer.touch(session)),
+                max_age=signer.ttl, httponly=True, samesite="strict",
+                secure=secure, path="/")
         return response
 
     def st() -> AppState:
         return app.state.st
+
+    @app.post("/api/login")
+    def login(req: LoginReq, request: Request):
+        if not auth_enabled:
+            return {"ok": True, "auth": False}
+        host = request.client.host if request.client else "unknown"
+        if not token_matches(req.token, access_token):
+            log_security("login_failed", host)
+            raise HTTPException(status_code=401, detail="Invalid access token.")
+        secure = (request.url.scheme == "https" or
+                  request.headers.get("x-forwarded-proto", "").lower() == "https")
+        payload = signer.issue()
+        resp = JSONResponse({"ok": True, "auth": True, "csrf": payload["csrf"]})
+        resp.set_cookie(COOKIE_SESSION, signer.encode(payload),
+                        max_age=signer.ttl, httponly=True, samesite="strict",
+                        secure=secure, path="/")
+        resp.set_cookie(COOKIE_CSRF, payload["csrf"], max_age=signer.ttl,
+                        httponly=False, samesite="strict", secure=secure,
+                        path="/")
+        return resp
+
+    @app.post("/api/logout")
+    def logout():
+        resp = JSONResponse({"ok": True})
+        resp.delete_cookie(COOKIE_SESSION, path="/")
+        resp.delete_cookie(COOKIE_CSRF, path="/")
+        return resp
 
     @app.get("/")
     def index():
@@ -217,13 +345,15 @@ def create_app(state=None, chat_rate_limit=30,
     def get_state():
         s = st()
         with s.lock:
-            return snapshot(s)
+            snap = snapshot(s)
+        snap["auth_required"] = auth_enabled
+        return snap
 
     @app.post("/api/chat")
     def chat(req: ChatReq, request: Request):
         s = st()
         host = request.client.host if request.client else "unknown"
-        if not limiter.allow(host):
+        if not chat_limiter.allow(host):
             raise HTTPException(
                 status_code=429,
                 detail="Too many messages too quickly. Please wait a minute "
@@ -253,9 +383,8 @@ def create_app(state=None, chat_rate_limit=30,
             traceback.print_exc()
             raise HTTPException(
                 status_code=500,
-                detail=f"Unexpected server error: {type(e).__name__}. "
-                       "See the terminal window for details."
-                       + completed_actions_note(e))
+                detail="Unexpected server error. See the terminal window for "
+                       "details." + completed_actions_note(e))
         finally:
             s.chat_lock.release()
         seconds = round(time.time() - started, 1)
@@ -266,6 +395,12 @@ def create_app(state=None, chat_rate_limit=30,
 
     @app.post("/api/tool")
     def tool(req: ToolReq):
+        if len(req.name) > 64:
+            raise HTTPException(status_code=400, detail="Tool name is too long.")
+        args_json = json.dumps(req.args, separators=(",", ":"))
+        if len(args_json) > 8192:
+            raise HTTPException(status_code=413,
+                                detail="Tool arguments are too large.")
         return st().toolbox.call(req.name, req.args)
 
     @app.post("/api/confirm/{tid}")
@@ -322,14 +457,16 @@ def create_app(state=None, chat_rate_limit=30,
                     f"auto_execute_limit_cny={new.auto_execute_limit_cny}",
                     f"max_pkr_per_cny={new.max_pkr_per_cny}"],
             }
-            with path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+            append_audit(path, entry)
             s.sandbox.save()
         return {"ok": True}
 
     @app.post("/api/quotes")
     def add_quote(req: QuoteReq):
         s = st()
+        if len(req.provider) > 120:
+            raise HTTPException(status_code=400,
+                                detail="Provider name is too long.")
         try:
             uq = analyze_quote(req.provider, _d(req.pkr_paid),
                                _d(req.cny_received), s.rate.pkr_per_cny)

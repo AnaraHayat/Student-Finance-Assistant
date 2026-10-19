@@ -64,8 +64,35 @@ function toast(msg, isError) {
   toast._timer = setTimeout(() => { t.className = "toast"; }, 4500);
 }
 
+function getCookie(name) {
+  const prefix = name + "=";
+  return document.cookie.split(";")
+    .map((c) => c.trim())
+    .filter((c) => c.startsWith(prefix))
+    .map((c) => decodeURIComponent(c.slice(prefix.length)))[0] || "";
+}
+
+function showLogin(message) {
+  const ov = $("#login-overlay");
+  if (!ov) return;
+  ov.classList.remove("hidden");
+  const err = $("#login-error");
+  if (err) err.textContent = message || "";
+  const input = $("#login-token");
+  if (input) setTimeout(() => input.focus(), 30);
+}
+
+function hideLogin() {
+  const ov = $("#login-overlay");
+  if (ov) ov.classList.add("hidden");
+}
+
+function isWrite(method) {
+  return method && method !== "GET" && method !== "HEAD";
+}
+
 async function api(path, method, body, timeoutMs) {
-  const opt = { method: method || "GET", headers: {} };
+  const opt = { method: method || "GET", headers: {}, credentials: "same-origin" };
   let timer = null;
   if (timeoutMs) {
     const ctl = new AbortController();
@@ -75,6 +102,10 @@ async function api(path, method, body, timeoutMs) {
   if (body !== undefined) {
     opt.headers["Content-Type"] = "application/json";
     opt.body = JSON.stringify(body);
+  }
+  if (isWrite(opt.method)) {
+    const csrf = getCookie("sfx_csrf");
+    if (csrf) opt.headers["X-CSRF-Token"] = csrf;
   }
   let r;
   try {
@@ -92,10 +123,15 @@ async function api(path, method, body, timeoutMs) {
   try { data = await r.json(); } catch (e) { /* no body */ }
   if (!r.ok) {
     const d = data && data.detail;
-    if (typeof d === "string") throw new Error(d);
-    throw new Error(r.status === 422
-      ? "Invalid input. Check the values you entered."
-      : "Server error (" + r.status + "). See the terminal window.");
+    let msg;
+    if (typeof d === "string") msg = d;
+    else if (r.status === 422) msg = "Invalid input. Check the values you entered.";
+    else if (r.status === 401) msg = "Please sign in.";
+    else msg = "Server error (" + r.status + "). See the terminal window.";
+    const err = new Error(msg);
+    err.status = r.status;
+    if (r.status === 401 && path !== "/api/login") showLogin();
+    throw err;
   }
   return data;
 }
@@ -138,6 +174,7 @@ function ensureBox(panelSel, id, title) {
 /* ---------- state rendering ---------- */
 async function refreshState() {
   STATE = await api("/api/state");
+  hideLogin();
   renderState();
 }
 
@@ -148,7 +185,7 @@ async function refreshAll() {
     if (FORECAST_SHOWN) await loadForecast();
     if (!$("#tab-activity").classList.contains("hidden")) await loadLog();
   } catch (e) {
-    toast(e.message, true);
+    if (e.status !== 401) toast(e.message, true);
   }
 }
 
@@ -164,6 +201,8 @@ function renderState() {
   $("#mode-chip").textContent = "AI: " + modeText(s);
   $("#bal-pkr").textContent = fmt(s.balances.pkr);
   $("#bal-cny").textContent = fmt(s.balances.cny);
+  const lock = $("#lock-btn");
+  if (lock) lock.classList.toggle("hidden", !s.auth_required);
 
   document.querySelectorAll(".tier-pill").forEach((b) => {
     const on = Number(b.dataset.tier) === s.tier;
@@ -223,11 +262,16 @@ function renderTrust() {
     ["Rate source", s.rate.source],
     ["Fee data", illus + " of " + total + " routes illustrative"],
     ["Assistant's date", s.today],
+    ["Audit log", s.audit_ok === false ? "NOT verified" : "hash chain verified"],
     ["AI", modeText(s)]
   ].forEach(([k, v]) => { dl.appendChild(el("dt", "", k)); dl.appendChild(el("dd", "", v)); });
-  $("#trust-note").textContent = illus > 0
+  let note = illus > 0
     ? "Illustrative routes are not fully sourced (for example the exchange-rate markup may be missing). Do not use them to choose a real transfer."
     : "";
+  if (s.audit_ok === false) {
+    note += " The audit log failed its integrity check, so recorded activity may have been altered.";
+  }
+  $("#trust-note").textContent = note;
 }
 
 function renderPending() {
@@ -703,6 +747,37 @@ async function loadLog() {
   } catch (e) {
     toast(e.message, true);
   }
+}
+
+/* ---------- authentication ---------- */
+const loginForm = $("#login-form");
+if (loginForm) {
+  loginForm.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const btn = $("#login-submit");
+    const errEl = $("#login-error");
+    if (errEl) errEl.textContent = "";
+    if (btn) btn.disabled = true;
+    try {
+      await api("/api/login", "POST",
+        { token: $("#login-token").value }, 15000);
+      $("#login-token").value = "";
+      hideLogin();
+      await refreshAll();
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+}
+
+const lockBtn = $("#lock-btn");
+if (lockBtn) {
+  lockBtn.addEventListener("click", async () => {
+    try { await api("/api/logout", "POST", {}); } catch (e) { /* ignore */ }
+    showLogin("Locked. Enter your access token to continue.");
+  });
 }
 
 /* ---------- show unexpected errors instead of failing silently ---------- */

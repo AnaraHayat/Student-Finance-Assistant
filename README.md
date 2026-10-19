@@ -21,7 +21,7 @@ A finance assistant for a Pakistani student studying in China. It helps you:
 | `store.py` | SQLite persistence for wallets, pending transfers, expenses, events and quotes. |
 | `server.py` | FastAPI backend. |
 | `web/` | The web page (HTML + JS). |
-| `tests/` | 127 automated tests. |
+| `tests/` | 143 automated tests. |
 
 ### Permission tiers
 
@@ -77,6 +77,31 @@ Without an API key the app runs in **demo mode** using a simple mock assistant. 
 4. Restart the app. The page shows which mode is active.
 
 Optional safety: set `LOCAL_ONLY=1` in `.env` to make the server refuse any request that does not come from this machine. It is off by default.
+
+## Security
+
+This is a sandbox, but the finance controls are enforced in code, not by the AI. What is in place:
+
+- **Access token login.** Set `ACCESS_TOKEN` in `.env` to a long random value to require sign-in before any `/api` call. With it set, the browser shows a lock screen, the session is an HMAC-signed `HttpOnly` cookie, and writes require a CSRF token. Leave it unset only for a throwaway local demo. Generate one with:
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
+- **Idle timeout.** `SESSION_TTL` (default 1800 seconds) signs you out after inactivity, and every session has an 8-hour absolute cap. **Lock** in the header ends the session immediately.
+- **Rate limits.** Chat has its own limit, and every state-changing API call is limited per client.
+- **Input caps.** Request bodies, tool arguments, tool names and free-text fields are length-limited.
+- **Headers and hosts.** The app sends a strict Content-Security-Policy plus `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and cross-origin isolation headers. Only the hosts in `ALLOWED_HOSTS` are answered (default `127.0.0.1,localhost`).
+- **Tamper-evident audit log.** Every audit entry carries a SHA-256 hash of the previous entry. On startup the chain is checked and the result appears under *Data & trust*; an edit to the file is detected.
+- **Safer failures.** Unexpected errors no longer expose exception types to the browser, and security events (failed logins, bad CSRF tokens, rate-limit hits) go to `logs/security.jsonl`.
+- **Dependency auditing.** CI runs `pip-audit` against `requirements.txt` on every push.
+- **Persistence.** SQLite queries are parameterized, money is stored as text and kept in `Decimal`, `.env` and the database are git-ignored, and file permissions are tightened to owner-only on POSIX.
+
+**HTTPS.** The app itself speaks HTTP. When you put it behind TLS, either terminate TLS in a reverse proxy (Caddy, nginx) or run:
+
+```bash
+uvicorn server:app --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+
+When the request is HTTPS, the session cookie is marked `Secure` and HSTS is sent. Do not expose the app to the internet without TLS and a real `ACCESS_TOKEN`.
 
 ## Use it
 

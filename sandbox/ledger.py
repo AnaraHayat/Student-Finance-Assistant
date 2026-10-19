@@ -1,8 +1,8 @@
-import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
+from audit import append as append_audit
 from core.mandate import ALLOW_EXECUTE, BLOCKED, Mandate, evaluate
 from core.money import Quote
 
@@ -74,8 +74,7 @@ class Sandbox:
             "cny_balance_after": str(self.cny_balance),
         }
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.log_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
+        append_audit(self.log_path, entry)
         self._persist()
         return {"transfer_id": tid, "status": status, "reasons": list(reasons)}
 

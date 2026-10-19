@@ -18,6 +18,15 @@ def _d(x) -> Decimal:
     return v
 
 
+def _text(value, field, limit=120) -> str:
+    text = str(value).strip()
+    if not text:
+        raise ValueError(f"{field} cannot be empty")
+    if len(text) > limit:
+        raise ValueError(f"{field} is too long (max {limit} characters)")
+    return text
+
+
 class ToolBox:
     """The only functions the AI may call. There is deliberately no
     confirm, reject or mandate change here: only a human (UI) may do those."""
@@ -78,6 +87,8 @@ class ToolBox:
 
     def _compare_routes(self, cny_to_deliver, route_type=None):
         amount = _d(cny_to_deliver)
+        if route_type is not None:
+            route_type = _text(route_type, "route_type", 40)
         by_name = {r.name: r for r in self.routes}
         qs = compare(self.routes, amount, self.rate.pkr_per_cny, route_type)
         return {
@@ -100,6 +111,7 @@ class ToolBox:
 
     def _request_transfer(self, route_name, cny_to_deliver):
         amount = _d(cny_to_deliver)
+        route_name = _text(route_name, "route_name")
         route = next((r for r in self.routes if r.name == route_name), None)
         if route is None:
             raise ValueError(f"unknown route '{route_name}'")
@@ -112,7 +124,8 @@ class ToolBox:
 
     def _add_expense(self, name, on, amount_cny, category):
         self.expenses.append(
-            Expense(name, date.fromisoformat(on), _d(amount_cny), category))
+            Expense(_text(name, "name"), date.fromisoformat(on),
+                    _d(amount_cny), _text(category, "category", 60)))
         if self.store is not None:
             self.store.save_expenses(self.expenses)
         return {"ok": True, "expense_count": len(self.expenses)}
@@ -136,7 +149,8 @@ class ToolBox:
 
     def _add_event(self, name, on, amount_cny, kind):
         self.events.append(
-            Event(name, date.fromisoformat(on), _d(amount_cny), kind))
+            Event(_text(name, "name"), date.fromisoformat(on), _d(amount_cny),
+                  _text(kind, "kind", 20)))
         if self.store is not None:
             self.store.save_events(self.events)
         return {"ok": True, "event_count": len(self.events)}

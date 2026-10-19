@@ -59,7 +59,8 @@ def make_client(tmp_path, tier=1, model=None):
     tb = ToolBox(sb, routes, RATE)
     agent = Agent(model or MockModel(), tb, today=date(2026, 10, 12))
     st = AppState(sb, tb, agent, RATE, routes, "mock")
-    return TestClient(create_app(st)), st
+    return TestClient(create_app(st, access_token="", local_only=False,
+                                 allowed_hosts=["testserver"])), st
 
 
 def request_b(client, amount=1000):
@@ -275,5 +276,8 @@ def test_unexpected_error_returns_500_and_rolls_back(tmp_path):
     client, st = make_client(tmp_path, model=BrokenModel())
     r = client.post("/api/chat", json={"message": "hello"})
     assert r.status_code == 500
-    assert "RuntimeError" in r.json()["detail"]
+    detail = r.json()["detail"]
+    assert "Unexpected server error" in detail
+    # Internal exception types must not leak to the client.
+    assert "RuntimeError" not in detail
     assert st.agent.contents == []

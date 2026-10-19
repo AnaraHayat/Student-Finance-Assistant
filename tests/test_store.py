@@ -29,7 +29,8 @@ def build_client(tmp_path, store, tier=1):
     st = AppState(sb, tb, Agent(MockModel(), tb), RATE, [A], "mock",
                   store=store)
     st.my_quotes = quotes
-    return TestClient(create_app(st)), st
+    return TestClient(create_app(st, access_token="", local_only=False,
+                                 allowed_hosts=["testserver"])), st
 
 
 def test_round_trip_sandbox_and_collections(tmp_path):
